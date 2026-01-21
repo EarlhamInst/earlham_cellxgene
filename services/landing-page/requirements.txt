@@ -1,0 +1,39 @@
+# Flask web framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# CORS support
+Flask-CORS==4.0.0
+
+# Data handling
+anndata==0.10.3
+h5py==3.10.0
+pandas==2.1.4
+numpy==1.26.2
+
+# WSGI server
+gunicorn==21.2.0
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-timeout==2.2.0
+pytest-mock==3.12.0
+
+# HTTP client for tests
+requests==2.31.0
+
+# E2E testing
+selenium==4.16.0
+
+# Docker SDK for managing containers
+docker==7.0.0
+
+# Background job scheduling
+APScheduler==3.10.4
+
+# Code quality
+flake8==6.1.0
+black==23.12.1
+pylint==3.0.3
+mypy==1.8.0

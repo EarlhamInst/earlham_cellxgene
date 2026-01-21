@@ -1,0 +1,323 @@
+openapi: 3.0.3
+info:
+  title: CellXGene Explorer Landing Page API
+  description: |
+    REST API for the CellXGene Explorer landing page service. Provides dataset catalog and management endpoints.
+  version: 1.0.0
+  contact:
+    name: CellXGene Stack Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development
+  - url: http://cellxgene-explorer.local/api
+    description: Production
+
+tags:
+  - name: datasets
+    description: Dataset catalog operations
+  - name: health
+    description: Service health and status
+
+paths:
+  /health:
+    get:
+      tags:
+        - health
+      summary: Health check endpoint
+      description: Returns service health status. Used by Docker healthcheck and monitoring.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  dataset_count:
+                    type: integer
+                    description: Number of valid datasets available
+              example:
+                status: healthy
+                timestamp: "2026-01-14T10:30:00Z"
+                dataset_count: 12
+
+  /datasets:
+    get:
+      tags:
+        - datasets
+      summary: List all available datasets
+      description: |
+        Returns catalog of all validated datasets with metadata. 
+        Datasets are scanned from the configured data directory.
+      operationId: listDatasets
+      parameters:
+        - name: organism
+          in: query
+          description: Filter by organism (e.g., "Homo sapiens")
+          required: false
+          schema:
+            type: string
+        - name: tissue
+          in: query
+          description: Filter by tissue type
+          required: false
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: Sort field
+          required: false
+          schema:
+            type: string
+            enum: [name, cell_count, upload_date, file_size]
+            default: upload_date
+        - name: order
+          in: query
+          description: Sort order
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of datasets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  datasets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Dataset'
+                  total:
+                    type: integer
+                    description: Total number of datasets
+              example:
+                datasets:
+                  - id: pbmc_10k
+                    display_name: "Human PBMC 10k Dataset"
+                    description: "10,000 peripheral blood mononuclear cells from a healthy donor"
+                    organism: "Homo sapiens"
+                    tissue: "blood"
+                    cell_count: 10000
+                    feature_count: 33538
+                    file_size_human: "2.3 GB"
+                    upload_date: "2026-01-10"
+                total: 1
+
+  /datasets/{dataset_id}:
+    get:
+      tags:
+        - datasets
+      summary: Get dataset details
+      description: Returns detailed information about a specific dataset
+      operationId: getDataset
+      parameters:
+        - name: dataset_id
+          in: path
+          description: Unique dataset identifier
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dataset details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetDetail'
+        '404':
+          description: Dataset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /datasets/{dataset_id}/launch:
+    post:
+      tags:
+        - datasets
+      summary: Launch CellXGene viewer for dataset
+      description: |
+        Initiates CellXGene viewer for the specified dataset.
+        Returns URL to access the viewer (proxied through Nginx).
+      operationId: launchDataset
+      parameters:
+        - name: dataset_id
+          in: path
+          description: Unique dataset identifier
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CellXGene viewer URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  viewer_url:
+                    type: string
+                    format: uri
+                    description: URL to access CellXGene viewer
+                  dataset_id:
+                    type: string
+              example:
+                viewer_url: "/cellxgene/?dataset=pbmc_10k"
+                dataset_id: "pbmc_10k"
+        '404':
+          description: Dataset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: CellXGene service unavailable (all workers busy)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /datasets/{dataset_id}/metadata:
+    get:
+      tags:
+        - datasets
+      summary: Get raw metadata JSON
+      description: Returns the raw metadata JSON file for a dataset (singlecellschemas.org format)
+      operationId: getDatasetMetadata
+      parameters:
+        - name: dataset_id
+          in: path
+          description: Unique dataset identifier
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dataset metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Metadata conforming to singlecellschemas.org
+        '404':
+          description: Dataset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Dataset:
+      type: object
+      required:
+        - id
+        - display_name
+        - file_size_human
+        - upload_date
+      properties:
+        id:
+          type: string
+          description: Unique identifier (derived from filename)
+          example: "pbmc_10k"
+        display_name:
+          type: string
+          description: Human-readable name
+          example: "Human PBMC 10k Dataset"
+        description:
+          type: string
+          description: Dataset description
+          example: "10,000 peripheral blood mononuclear cells"
+        organism:
+          type: string
+          description: Species
+          example: "Homo sapiens"
+        tissue:
+          type: string
+          description: Tissue type
+          example: "blood"
+        cell_count:
+          type: integer
+          description: Number of cells
+          example: 10000
+        feature_count:
+          type: integer
+          description: Number of genes/features
+          example: 33538
+        file_size_human:
+          type: string
+          description: Human-readable file size
+          example: "2.3 GB"
+        upload_date:
+          type: string
+          format: date
+          description: When dataset was added
+          example: "2026-01-10"
+
+    DatasetDetail:
+      allOf:
+        - $ref: '#/components/schemas/Dataset'
+        - type: object
+          properties:
+            filename:
+              type: string
+              description: H5AD filename
+              example: "pbmc_10k.h5ad"
+            file_size_bytes:
+              type: integer
+              description: Exact file size in bytes
+              example: 2468463616
+            validation_status:
+              type: string
+              enum: [valid, invalid]
+              description: Validation result
+            metadata_schema_version:
+              type: string
+              description: singlecellschemas.org schema version
+              example: "5.0.0"
+            contributors:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  institution:
+                    type: string
+            citation:
+              type: string
+              description: Publication citation
+              example: "Doe et al. (2025). Nature."
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "dataset_not_found"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Dataset 'pbmc_10k' does not exist"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true

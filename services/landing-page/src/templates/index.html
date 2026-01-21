@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CellXGene Explorer - Browse and explore single-cell datasets - Earlham Institute">
+    <title>CellXGene Explorer | Earlham Institute</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="title">🔬 CellXGene Explorer</h1>
+            <p class="subtitle">Earlham Institute | Browse and explore single-cell datasets</p>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <!-- Filter and Search Section -->
+            <section class="filters">
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        id="search-input" 
+                        placeholder="Search datasets by name or description..."
+                        aria-label="Search datasets"
+                    >
+                    <button id="search-button" aria-label="Search">🔍 Search</button>
+                </div>
+
+                <div class="filter-row">
+                    <select id="filter-organism" aria-label="Filter by organism">
+                        <option value="">All Organisms</option>
+                    </select>
+
+                    <select id="filter-tissue" aria-label="Filter by tissue">
+                        <option value="">All Tissues</option>
+                    </select>
+
+                    <select id="filter-assay" aria-label="Filter by assay">
+                        <option value="">All Assays</option>
+                    </select>
+
+                    <select id="sort-by" aria-label="Sort by">
+                        <option value="name">Sort by Name</option>
+                        <option value="cell_count">Sort by Cell Count</option>
+                        <option value="file_size">Sort by File Size</option>
+                    </select>
+
+                    <button id="clear-filters" aria-label="Clear all filters">Clear Filters</button>
+                </div>
+            </section>
+
+            <!-- Statistics Section -->
+            <section class="statistics" id="statistics">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-datasets">-</div>
+                    <div class="stat-label">Total Datasets</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-cells">-</div>
+                    <div class="stat-label">Total Cells</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-organisms">-</div>
+                    <div class="stat-label">Organisms</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-tissues">-</div>
+                    <div class="stat-label">Tissues</div>
+                </div>
+            </section>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading datasets...</p>
+            </div>
+
+            <!-- Error Message -->
+            <div id="error-message" class="error-message" style="display: none;" role="alert">
+                <span class="error-icon">⚠️</span>
+                <div class="error-content">
+                    <p class="error-title" id="error-title">Error</p>
+                    <p class="error-text" id="error-text"></p>
+                    <p class="error-hint" id="error-hint"></p>
+                </div>
+            </div>
+
+            <!-- Dataset Grid -->
+            <section class="dataset-grid" id="dataset-grid">
+                <!-- Dataset cards will be dynamically inserted here -->
+            </section>
+
+            <!-- No Results Message -->
+            <div id="no-results" class="no-results" style="display: none;">
+                <p>No datasets found matching your criteria.</p>
+                <button id="reset-filters">Reset Filters</button>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Earlham Institute | CellXGene Explorer</p>
+            <p>
+                <a href="https://www.earlham.ac.uk" target="_blank" rel="noopener">Earlham Institute</a> |
+                <a href="https://github.com/chanzuckerberg/cellxgene" target="_blank" rel="noopener">CellXGene</a> |
+                <a href="http://singlecellschemas.org" target="_blank" rel="noopener">Metadata Schema</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

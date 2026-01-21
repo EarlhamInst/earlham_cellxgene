@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  landing-page:
+  
+    build:
+      context: ./services/landing-page
+      dockerfile: Dockerfile
+    container_name: cellxgene-landing-page
+    environment:
+      - DATA_DIRECTORY=/data/datasets
+      - LOG_DIRECTORY=/tmp/logs
+      - DEBUG=${LANDING_PAGE_DEBUG:-false}
+      - LOG_LEVEL=${LANDING_PAGE_LOG_LEVEL:-INFO}
+      - HOST_DATA_DIRECTORY=${HOST_DATA_DIRECTORY:-./data/datasets}  # Host path for spawning containers
+    volumes:
+      - ${HOST_DATA_DIRECTORY:-./data/datasets}:/data/datasets:ro
+      - ${HOST_LOG_DIRECTORY:-./data/logs}:/data/logs:ro
+      - /var/run/docker.sock:/var/run/docker.sock  # For dynamic container management
+      
+    ports:
+      - "${LANDING_PAGE_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      retries: 3
+      #timeout: 10s
+      start_period: 40s
+      #disable: true
+    networks:
+      - cellxgene-network
+    restart: unless-stopped
+
+  cellxgene:
+    build:
+      context: ./services/cellxgene
+      dockerfile: Dockerfile
+    container_name: cellxgene-service
+    environment:
+      - DATA_DIRECTORY=/data/datasets
+      #- DATA_DIRECTORY=${DATA_DIRECTORY:-/data/datasets}
+      #- WORKERS=${CELLXGENE_WORKERS:-10}
+      - WORKERS=2
+      - TIMEOUT=${CELLXGENE_TIMEOUT_SECONDS:-300}
+    volumes:
+      #- ./data/datasets:${DATA_DIRECTORY:-/data/datasets}:ro
+      
+      - ${HOST_DATA_DIRECTORY:-./data/datasets}:/data/datasets:ro   
+    
+    ports:
+      - "${CELLXGENE_PORT:-5005}:5005"
+    deploy:
+      resources:
+        limits:
+          #memory: 210G  # 10 workers × 20GB + 10GB overhead
+          memory: 2GB
+        reservations:
+          #memory: 200G
+          memory: 2GB
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - cellxgene-network
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: ./services/nginx
+      dockerfile: Dockerfile
+    container_name: cellxgene-nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    depends_on:
+      landing-page:
+        condition: service_healthy
+      cellxgene:
+        condition: service_healthy
+    volumes:
+      - ./services/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - cellxgene-network
+    restart: unless-stopped
+
+networks:
+  cellxgene-network:
+    driver: bridge
+
+volumes:
+  datasets:
+  logs:
