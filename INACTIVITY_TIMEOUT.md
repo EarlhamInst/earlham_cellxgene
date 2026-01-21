@@ -1,7 +1,7 @@
 # CellXGene Container Inactivity Timeout
 
 ## Overview
-CellXGene containers are now automatically closed after **60 minutes of inactivity** to optimize resource usage.
+CellXGene containers are now automatically closed after **48 hours of inactivity** to optimize resource usage while providing ample time for extended analysis sessions.
 
 ## Changes Made
 
@@ -15,10 +15,12 @@ CellXGene containers are now automatically closed after **60 minutes of inactivi
 ### 2. Flask Application (`services/landing-page/src/app.py`)
 - **Added APScheduler**: Background scheduler for automated cleanup tasks
 - **Cleanup job**: Runs every 5 minutes to check for and remove inactive containers
+- **Timeout**: 48 hours (172,800 seconds) of inactivity
 - **Graceful shutdown**: Scheduler properly shuts down when application terminates
 
 ### 3. API Routes (`services/landing-page/src/routes/datasets.py`)
-- **Enhanced launch response**: Now includes timeout information in the response
+- **Enhanced launch response**: Now includes "Container will be closed after 48 hours of inactivity"
+- **Status endpoint**: `/api/datasets/<dataset_id>/status` (GET) - polls until container ready, updates access time
 - **New endpoint**: `/api/datasets/<dataset_id>/keepalive` (POST)
   - Allows clients to extend container lifetime by updating access time
   - Useful for long-running analysis sessions
@@ -32,12 +34,14 @@ CellXGene containers are now automatically closed after **60 minutes of inactivi
 1. **Container Launch**: When a dataset is launched, the current timestamp is recorded
 2. **Activity Updates**: 
    - Automatically updated when launching an already-running container
+   - Updated when frontend polls status endpoint during startup
    - Can be manually updated via the `/keepalive` endpoint
 3. **Background Cleanup**: Every 5 minutes, a background job:
    - Checks all active containers
    - Calculates time since last access
-   - Stops containers inactive for more than 60 minutes
+   - Stops containers inactive for more than 48 hours
 4. **Container Removal**: Stopped containers are automatically removed (Docker `auto_remove=True`)
+5. **Error Handling**: Nginx shows a friendly error page if users try to access closed containers
 
 ## Usage
 
@@ -76,13 +80,17 @@ To adjust the timeout settings, modify these values in `services/landing-page/sr
 ```python
 scheduler.add_job(
     func=lambda: container_manager.cleanup_inactive(
-        max_inactive_seconds=3600  # Change this value (in seconds)
+        max_inactive_seconds=172800  # 48 hours in seconds - change this value
     ),
     trigger='interval',
     minutes=5,  # Change cleanup frequency here
     ...
 )
 ```
+
+**Note**: Also update the timeout message in:
+- `services/landing-page/src/routes/datasets.py` (launch endpoint response)
+- `services/nginx/nginx.conf` (error page message)
 
 ## Deployment
 
@@ -108,7 +116,7 @@ docker-compose logs -f landing-page | grep -i "cleanup\|inactive"
 
 Example log output:
 ```
-INFO - Container pbmc3k inactive for 3605s (max: 3600s), marking for removal
+INFO - Container pbmc3k inactive for 172805s (max: 172800s), marking for removal
 INFO - Stopping container for pbmc3k on port 5006
 INFO - Cleaned up 1 inactive container(s)
 ```
@@ -116,6 +124,8 @@ INFO - Cleaned up 1 inactive container(s)
 ## Benefits
 
 - **Resource Efficiency**: Automatically frees up memory and CPU from unused containers
+- **User-Friendly**: 48-hour window allows for multi-day analysis sessions without interruption
 - **Cost Optimization**: Reduces resource consumption in cloud deployments
-- **User Experience**: Containers start quickly on-demand, users don't notice the cleanup
+- **Seamless Experience**: Containers start quickly on-demand, status polling prevents bad gateway errors
 - **Scalability**: Allows more concurrent users by recycling resources
+- **Error Handling**: Custom nginx error page guides users back to relaunch closed containers

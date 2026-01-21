@@ -190,7 +190,7 @@ curl http://localhost/api/datasets/nonexistent_id
 
 #### `POST /api/datasets/{dataset_id}/launch`
 
-Initiates CellXGene viewer for the specified dataset. Returns URL to access the viewer (proxied through Nginx).
+Spawns a dedicated CellXGene container for the specified dataset. Returns URL to access the viewer and container status.
 
 **URL Parameters**:
 - `dataset_id`: Unique dataset identifier
@@ -198,31 +198,40 @@ Initiates CellXGene viewer for the specified dataset. Returns URL to access the 
 **Response**: `200 OK`
 ```json
 {
-  "viewer_url": "/cellxgene/?dataset=pbmc_10k",
-  "dataset_id": "pbmc_10k"
+  "dataset_id": "pbmc_10k",
+  "dataset_name": "Human PBMC 10k Dataset",
+  "cellxgene_url": "http://localhost/cellxgene-pbmc_10k/",
+  "container_port": 5006,
+  "status": "ready",
+  "timeout_info": "Container will be closed after 48 hours of inactivity"
 }
 ```
 
 **Response Fields**:
-- `viewer_url`: URL path to access CellXGene viewer (relative to base URL)
 - `dataset_id`: Echo of requested dataset ID
+- `dataset_name`: Human-readable dataset name
+- `cellxgene_url`: Full URL to access CellXGene viewer
+- `container_port`: Internal port allocated to container
+- `status`: Container status (typically "ready")
+- `timeout_info`: Information about automatic cleanup
 
 **Error Responses**:
 
 **404 Not Found** - Dataset does not exist:
 ```json
 {
-  "error": "dataset_not_found",
-  "message": "Dataset 'nonexistent_id' does not exist"
+  "error_type": "DatasetNotFoundError",
+  "message": "Dataset 'nonexistent_id' not found in catalog",
+  "recovery_hint": "Check the dataset ID and try again"
 }
 ```
 
-**503 Service Unavailable** - CellXGene service unavailable:
+**500 Internal Server Error** - Container launch failed:
 ```json
 {
-  "error": "service_unavailable",
-  "message": "CellXGene service is unavailable",
-  "recovery_hint": "All CellXGene workers are currently busy. Please try again in a few moments."
+  "error_type": "RuntimeError",
+  "message": "Failed to launch CellXGene container: No free ports available",
+  "recovery_hint": "Please contact support if this persists"
 }
 ```
 
@@ -234,18 +243,144 @@ curl -X POST http://localhost/api/datasets/pbmc_10k/launch
 
 # Response
 {
-  "viewer_url": "/cellxgene/?dataset=pbmc_10k",
-  "dataset_id": "pbmc_10k"
+  "dataset_id": "pbmc_10k",
+  "dataset_name": "Human PBMC 10k Dataset",
+  "cellxgene_url": "http://localhost/cellxgene-pbmc_10k/",
+  "container_port": 5006,
+  "status": "ready",
+  "timeout_info": "Container will be closed after 48 hours of inactivity"
 }
-
-# Navigate browser to viewer URL
-# http://localhost/cellxgene/?dataset=pbmc_10k
 ```
 
 **Use Cases**:
 - User clicks "Launch" button in web UI
 - Programmatic dataset launching
 - Automated workflows
+
+**Notes**:
+- Each dataset gets its own isolated container
+- Container persists for 48 hours of inactivity
+- If container already exists, returns existing container information
+- Frontend should poll `/api/datasets/{dataset_id}/status` until ready
+
+---
+
+### Check Container Status
+
+#### `GET /api/datasets/{dataset_id}/status`
+
+Checks if a CellXGene container is running and ready for the specified dataset. Used by frontend to poll during startup.
+
+**URL Parameters**:
+- `dataset_id`: Unique dataset identifier
+
+**Response**: `200 OK` (Container Ready)
+```json
+{
+  "dataset_id": "pbmc_10k",
+  "status": "running",
+  "ready": true,
+  "cellxgene_url": "http://localhost/cellxgene-pbmc_10k/",
+  "container_port": 5006,
+  "message": "Container is ready"
+}
+```
+
+**Response**: `200 OK` (Container Starting)
+```json
+{
+  "dataset_id": "pbmc_10k",
+  "status": "starting",
+  "ready": false,
+  "cellxgene_url": null,
+  "container_port": 5006,
+  "message": "Container is starting..."
+}
+```
+
+**Response**: `200 OK` (Container Not Running)
+```json
+{
+  "dataset_id": "pbmc_10k",
+  "status": "not_running",
+  "ready": false,
+  "message": "Container is not running"
+}
+```
+
+**Response Fields**:
+- `dataset_id`: Dataset identifier
+- `status`: Container status ("running", "starting", or "not_running")
+- `ready`: Boolean indicating if container is ready for access
+- `cellxgene_url`: URL when ready, null otherwise
+- `container_port`: Internal port (if container exists)
+- `message`: Human-readable status message
+
+**Example Requests**:
+
+```bash
+# Check status
+curl http://localhost/api/datasets/pbmc_10k/status
+
+# Poll until ready
+while true; do
+  STATUS=$(curl -s http://localhost/api/datasets/pbmc_10k/status | jq -r '.ready')
+  [ "$STATUS" = "true" ] && break
+  sleep 1
+done
+```
+
+**Use Cases**:
+- Frontend polling during container startup
+- Monitoring container availability
+- Health checking before redirect
+
+**Notes**:
+- Updates container access time (prevents premature cleanup)
+- Safe to call repeatedly during polling
+
+---
+
+### Keep Container Alive
+
+#### `POST /api/datasets/{dataset_id}/keepalive`
+
+Updates the last access time for a container to prevent automatic cleanup. Useful for long-running analysis sessions.
+
+**URL Parameters**:
+- `dataset_id`: Unique dataset identifier
+
+**Response**: `200 OK`
+```json
+{
+  "dataset_id": "pbmc_10k",
+  "status": "active",
+  "message": "Container activity updated"
+}
+```
+
+**Error Responses**:
+
+**404 Not Found** - Container not running:
+```json
+{
+  "dataset_id": "pbmc_10k",
+  "status": "not_running",
+  "message": "Container is not currently running"
+}
+```
+
+**Example Requests**:
+
+```bash
+# Keep container alive
+curl -X POST http://localhost/api/datasets/pbmc_10k/keepalive
+```
+
+**Use Cases**:
+- Periodic heartbeat from frontend
+- Long analysis sessions (>48 hours)
+- Preventing timeout during active use
 
 **Notes**:
 - This endpoint is idempotent - launching same dataset multiple times is safe

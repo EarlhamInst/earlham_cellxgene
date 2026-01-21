@@ -5,11 +5,13 @@ A self-contained Docker-based environment for exploring curated single-cell data
 ## Features
 
 - 🔬 **Dataset Catalog**: Browse curated single-cell datasets with metadata
-- 🚀 **One-Click Launch**: Launch CellXGene viewer for any dataset
+- 🚀 **One-Click Launch**: Launch CellXGene viewer for any dataset with smart status polling
 - 🐳 **Docker-Based**: Fully containerized for easy deployment
 - 📦 **Volume-Mounted Storage**: Add datasets without rebuilding containers
 - 🔌 **Extensible**: Add additional services via Docker Compose
-- ⚡ **High Concurrency**: Supports 10 concurrent users with 200GB memory allocation
+- ⚡ **High Concurrency**: Dynamic container spawning supports multiple concurrent users
+- ⏰ **Auto-Cleanup**: Containers automatically close after 48 hours of inactivity
+- 🎨 **Earlham Institute Branding**: Custom styling with institutional brand colors
 
 ## Quick Start
 
@@ -49,53 +51,65 @@ docker-compose up -d
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                         Nginx                           │
-│              (Reverse Proxy & Routing)                  │
-└─────────────────┬───────────────────────┬───────────────┘
-                  │                       │
-         ┌────────▼────────┐     ┌───────▼────────┐
-         │  Landing Page   │     │   CellXGene    │
-         │    (Flask)      │     │  (Gunicorn +   │
-         │                 │     │   Uvicorn)     │
-         │  - Dataset List │     │  - 10 Workers  │
-         │  - Metadata API │     │  - 20GB each   │
-         └────────┬────────┘     └───────┬────────┘
-                  │                      │
-                  └──────────┬───────────┘
-                             │
-                    ┌────────▼────────┐
-                    │  Volume Mount   │
-                    │  data/datasets/ │
-                    │  - *.h5ad files │
-                    └─────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                         Nginx                               │
+│         (Reverse Proxy, Routing & Error Handling)           │
+└─────────┬──────────────────┬────────────────┬───────────────┘
+          │                  │                │
+    ┌─────▼──────┐  ┌───────▼────────┐  ┌───▼────────────┐
+    │  Landing   │  │  Static        │  │  Dynamic       │
+    │   Page     │  │  CellXGene     │  │  CellXGene     │
+    │  (Flask +  │  │  Service       │  │  Containers    │
+    │   APSched) │  │  (Optional)    │  │  (On-demand)   │
+    │            │  │                │  │                │
+    │ - Catalog  │  │ - Port 5005    │  │ - Ports 5006+  │
+    │ - API      │  └────────────────┘  │ - Per dataset  │
+    │ - Container│                      │ - Auto-cleanup │
+    │   Manager  │                      │   48h timeout  │
+    └─────┬──────┘                      └────┬───────────┘
+          │                                  │
+          │        ┌─────────────────────────┘
+          │        │
+    ┌─────▼────────▼─────┐
+    │   Docker Socket    │
+    │  (Container Mgmt)  │
+    └─────────┬──────────┘
+              │
+    ┌─────────▼──────────┐
+    │   Volume Mount     │
+    │  data/datasets/    │
+    │  - *.h5ad files    │
+    └────────────────────┘
 ```
 
 ### Components
 
-- **Nginx**: Reverse proxy routing requests to appropriate services
+- **Nginx**: Reverse proxy with intelligent routing and error handling
   - `/` → Landing page web interface
   - `/api/` → Landing page REST API
-  - `/cellxgene/` → CellXGene visualization service
+  - `/cellxgene-{dataset_id}/` → Dynamic per-dataset containers
+  - Custom error pages for closed containers
 
-- **Landing Page Service**: Python Flask/FastAPI application
+- **Landing Page Service**: Python Flask application with container orchestration
   - Scans data directory for h5ad files
   - Extracts embedded metadata from each file
-  - Validates metadata against singlecellschemas.org standard
-  - Provides REST API for dataset catalog
-  - Serves web UI for dataset selection
+  - Provides REST API for dataset catalog and container status
+  - Manages dynamic CellXGene container lifecycle
+  - Background scheduler for automatic cleanup (48-hour inactivity)
+  - Status polling endpoint for smooth container startup
 
-- **CellXGene Service**: CellXGene v2.x with Gunicorn
-  - 10 Uvicorn workers (20GB each)
-  - Interactive single-cell data visualization
-  - Supports clustering, filtering, gene expression analysis
+- **Dynamic CellXGene Containers**: On-demand instances
+  - Spawned automatically when dataset is launched
+  - Each dataset gets isolated container on unique port
+  - Automatic cleanup after 48 hours of inactivity
+  - Health checking ensures ready before user access
 
 ## Configuration
 
 Edit `.env` to customize:
 
 - **Ports**: Change `NGINX_PORT`, `LANDING_PAGE_PORT`, `CELLXGENE_PORT`
-- **Workers**: Adjust `CELLXGENE_WORKERS` (reduces memory if < 10)
+- **Workers**: Adjust `CELLXGENE_WORKERS` for static service (if used)
 - **Memory**: Modify `CELLXGENE_MEMORY_PER_WORKER_GB`
 - **Host Paths**: Set `HOST_DATA_DIRECTORY` and `HOST_LOG_DIRECTORY` to absolute paths on your host machine
 - **Container Paths**: Set `DATA_DIRECTORY`, `LOG_DIRECTORY` (internal container paths)
@@ -138,6 +152,10 @@ adata.write_h5ad("your_dataset.h5ad")
 See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation.
 
 See [docs/deployment.md](docs/deployment.md) for OpenNebula/CyVerse deployment instructions.
+
+See [INACTIVITY_TIMEOUT.md](INACTIVITY_TIMEOUT.md) for details on automatic container cleanup.
+
+See [EARLHAM_STYLING.md](EARLHAM_STYLING.md) for branding and design guidelines.
 
 ## Testing
 

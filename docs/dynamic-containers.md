@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CellXGene Explorer now supports **dynamic multi-dataset viewing** through on-demand container spawning. This allows multiple users to view different datasets simultaneously without conflicts.
+The CellXGene Explorer supports **dynamic multi-dataset viewing** through on-demand container spawning. This allows multiple users to view different datasets simultaneously without conflicts. Containers automatically clean up after 48 hours of inactivity.
 
 ## Architecture
 
@@ -11,11 +11,14 @@ The CellXGene Explorer now supports **dynamic multi-dataset viewing** through on
 1. **Landing Page** (`services/landing-page/`)
    - Manages dataset catalog
    - Spawns CellXGene containers on demand via Docker SDK
-   - Tracks active containers and their ports
+   - Tracks active containers with last access timestamps
+   - Background scheduler for automatic cleanup (48-hour inactivity)
 
 2. **Container Manager** (`services/landing-page/src/services/container_manager.py`)
    - Allocates ports (5006-5100) for CellXGene instances
    - Launches containers with specific dataset files
+   - Health checks ensure application readiness before user access
+   - Tracks last access time for inactivity-based cleanup
    - Handles container lifecycle (start, stop, cleanup)
 
 3. **CellXGene Service** (`services/cellxgene/`)
@@ -27,6 +30,7 @@ The CellXGene Explorer now supports **dynamic multi-dataset viewing** through on
    - Routes requests to dynamic containers
    - Pattern: `/cellxgene-{dataset_id}/` → `cellxgene-{dataset_id}:5005`
    - Uses Docker internal DNS for discovery
+   - Custom error pages when containers are unavailable
 
 ### How It Works
 
@@ -35,19 +39,29 @@ The CellXGene Explorer now supports **dynamic multi-dataset viewing** through on
    POST /api/datasets/{dataset_id}/launch
    ```
 
-2. **Landing page spawns dedicated container**
+2. **Frontend polls for container readiness**
+   - Displays "Starting..." with elapsed time
+   - Polls `/api/datasets/{dataset_id}/status` every second
+   - Updates access time during polling to prevent premature cleanup
+
+3. **Landing page spawns dedicated container**
    - Container name: `cellxgene-{dataset_id}`
    - Environment: `DATASET_FILE={filename}.h5ad`
    - Port: Auto-allocated from range 5006-5100
    - Network: `cellxgene_stack_cellxgene-network`
+   - Health check: Waits for HTTP 200 response before marking ready
 
-3. **Nginx proxies requests**
+4. **Browser opens URL when ready**
+   - Frontend receives ready status
+   - Opens URL in new tab: `https://your-domain.com/cellxgene-{dataset_id}/`
+
+5. **Nginx proxies requests**
    ```
    https://your-domain.com/cellxgene-{dataset_id}/
    → http://cellxgene-{dataset_id}:5005/
    ```
 
-4. **User browses dataset in CellXGene**
+6. **User browses dataset in CellXGene**
    - Each dataset runs in isolation
    - Multiple users can view different datasets
    - No interference between instances
