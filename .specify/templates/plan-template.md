@@ -31,7 +31,16 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Verify compliance with constitutional principles from `.specify/memory/constitution.md`:
+
+- [ ] **Unit Testing Gate**: Plan includes unit test strategy and testing framework
+- [ ] **Modular Architecture Gate**: Design shows clear module boundaries and single responsibilities
+- [ ] **Code Clarity Gate**: Plan commits to descriptive naming, documentation standards, and code comments
+- [ ] **Fail-Fast Gate**: Error handling strategy defined with explicit validation at boundaries
+- [ ] **Documentation Gate**: Comprehensive documentation plan covers API docs, usage guides, and inline comments
+- [ ] **Accessibility Gate**: Setup instructions and error messages designed for all skill levels
+
+**Violations**: [If any gate fails, justify why the violation is necessary and document simpler alternatives rejected]
 
 ## Project Structure
 

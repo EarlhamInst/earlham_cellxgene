@@ -6,12 +6,20 @@ A self-contained Docker-based environment for exploring curated single-cell data
 
 - 🔬 **Dataset Catalog**: Browse curated single-cell datasets with metadata
 - 🚀 **One-Click Launch**: Launch CellXGene viewer for any dataset with smart status polling
+- � **Progress Tracking**: Real-time loading progress bar with estimated completion times
+- ⏱️ **Smart Estimates**: File size-based loading time predictions
+- 🟢 **Status Indicators**: Visual badges showing running/stopped container status
+- ⏹️ **Manual Control**: Stop button to close containers on-demand
+- 🔧 **Admin Panel**: Monitor and manage all active containers with memory estimates
+- 🔄 **Auto-Retry**: Automatic retry mechanism for failed launches (OOM/timeout)
+- 💬 **Better Errors**: Context-aware error messages with actionable recovery hints
 - 🐳 **Docker-Based**: Fully containerized for easy deployment
 - 📦 **Volume-Mounted Storage**: Add datasets without rebuilding containers
 - 🔌 **Extensible**: Add additional services via Docker Compose
 - ⚡ **High Concurrency**: Dynamic container spawning supports multiple concurrent users
 - ⏰ **Auto-Cleanup**: Containers automatically close after 48 hours of inactivity
 - 🎨 **Earlham Institute Branding**: Custom styling with institutional brand colors
+- 🛡️ **Memory Management**: 4GB per-container limits prevent OOM crashes
 
 ## Quick Start
 
@@ -91,18 +99,56 @@ docker-compose up -d
   - Custom error pages for closed containers
 
 - **Landing Page Service**: Python Flask application with container orchestration
-  - Scans data directory for h5ad files
+  - Scans data directory for h5ad files using memory-mapped reading
   - Extracts embedded metadata from each file
   - Provides REST API for dataset catalog and container status
   - Manages dynamic CellXGene container lifecycle
   - Background scheduler for automatic cleanup (48-hour inactivity)
   - Status polling endpoint for smooth container startup
+  - Admin panel for monitoring active containers
 
 - **Dynamic CellXGene Containers**: On-demand instances
   - Spawned automatically when dataset is launched
-  - Each dataset gets isolated container on unique port
+  - Each dataset gets isolated container on unique port (5006-5100)
+  - 4GB memory limit per container to prevent OOM crashes
   - Automatic cleanup after 48 hours of inactivity
   - Health checking ensures ready before user access
+  - 180-second startup timeout for large files (4.5GB+)
+
+## User Interface
+
+### Main Landing Page
+
+- **Dataset Cards**: Grid view with metadata (organism, tissue, assay, cell/gene counts)
+- **Search & Filter**: Find datasets by name, organism, tissue, or assay
+- **Sort Options**: By name, cell count, or file size
+- **Launch Button**: One-click launch with progress bar
+- **Stop Button**: Appears after launch to manually close containers
+- **Status Badge**: Green "Running" indicator for active containers
+- **Loading Progress**: Real-time progress bar with estimated completion time
+- **Estimated Times**: File size-based predictions (< 100MB: ~30s, > 3GB: ~3 mins)
+
+### Admin Panel
+
+Access at `/admin` to:
+- View all active containers with status
+- See dataset names, ports, file sizes
+- Monitor last accessed time and inactive duration
+- Estimate total memory usage
+- Stop individual containers
+- Auto-refreshes every 30 seconds
+
+## API Endpoints
+
+- `GET /api/datasets` - List all datasets
+- `GET /api/datasets/{id}` - Get dataset details
+- `POST /api/datasets/{id}/launch` - Launch container (returns URL and timeout info)
+- `GET /api/datasets/{id}/status` - Check container status (ready/starting)
+- `POST /api/datasets/{id}/keepalive` - Update access time
+- `POST /api/datasets/{id}/stop` - Stop running container
+- `GET /api/admin/containers` - List active containers (admin)
+- `GET /api/health` - Health check
+- `GET /api/statistics` - Get catalog statistics
 
 ## Configuration
 
@@ -173,7 +219,36 @@ pytest tests/e2e/
 
 ## Troubleshooting
 
-See [docs/troubleshooting.md](docs/troubleshooting.md) for common issues and solutions.
+### Common Issues
+
+**Out of Memory (OOM) Errors**
+- Symptom: Containers exit with code 137 or crash after ~20 seconds
+- Cause: Dataset too large for available RAM
+- Solutions:
+  1. Close other containers via Admin Panel (`/admin`)
+  2. Increase Docker memory limit in Docker Desktop settings
+  3. Reduce number of concurrent containers
+  4. Increase per-container memory limit in `container_manager.py`
+
+**Slow Loading / Timeouts**
+- Large files (>4GB) may take 2-3 minutes to load
+- The system will retry automatically (up to 2 retries)
+- Progress bar shows estimated time
+- Check Admin Panel to see if containers are stuck
+
+**Container Not Starting**
+- Check `docker logs cellxgene-landing-page` for errors
+- Verify dataset file exists and is valid h5ad format
+- Ensure Docker has sufficient resources
+- Check if port range (5006-5100) is available
+
+**Can't Stop Container**
+- Container may have already stopped automatically
+- Check Admin Panel for current status
+- Use `docker ps | grep cellxgene` to verify
+- Restart landing-page service if manager state is inconsistent
+
+See [docs/troubleshooting.md](docs/troubleshooting.md) for more detailed solutions.
 
 ## Constitutional Compliance
 

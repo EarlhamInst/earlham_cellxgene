@@ -154,8 +154,8 @@ class CellxgeneContainerManager:
                 network=self.network_name,
                 mem_limit='4g',  # Limit memory to prevent OOM crashes
                 memswap_limit='4g',  # Disable swap for consistent performance
-                remove=True,  # Auto-remove when stopped
-                auto_remove=True
+                # Don't auto-remove so we can detect OOM kills
+                remove=False
             )
             
             # Wait for container to be healthy
@@ -182,12 +182,45 @@ class CellxgeneContainerManager:
         while time.time() - start_time < timeout:
             try:
                 container.reload()
-                if container.status == 'running':
+                state = container.attrs.get('State', {})
+                status = container.status
+                
+                self.logger.info(f"Container {container.name} status: {status}")
+                
+                # Check if container was killed or exited
+                if status == 'exited':
+                    exit_code = state.get('ExitCode', 0)
+                    oom_killed = state.get('OOMKilled', False)
+                    
+                    self.logger.error(f"Container {container.name} exited! Exit code: {exit_code}, OOMKilled: {oom_killed}")
+                    
+                    if oom_killed or exit_code == 137:
+                        raise RuntimeError(f"Container was killed due to out of memory (OOM). Exit code: {exit_code}")
+                    elif exit_code != 0:
+                        raise RuntimeError(f"Container exited with error code {exit_code}")
+                    else:
+                        raise RuntimeError(f"Container exited unexpectedly")
+                
+                if status == 'running':
+                    self.logger.info(f"Container {container.name} is running")
                     break
             except docker.errors.NotFound:
                 raise RuntimeError("Container disappeared during startup")
+            except RuntimeError:
+                raise  # Re-raise our custom errors
+            except Exception as e:
+                self.logger.error(f"Error checking container status: {e}")
+                raise RuntimeError(f"Failed to check container status: {e}")
             time.sleep(0.5)
         else:
+            # Timeout - do one final check for OOM
+            try:
+                container.reload()
+                state = container.attrs.get('State', {})
+                if state.get('OOMKilled', False) or state.get('ExitCode') == 137:
+                    raise RuntimeError(f"Container was killed due to out of memory (OOM)")
+            except:
+                pass
             raise RuntimeError(f"Container did not start within {timeout} seconds")
         
         # Now wait for the application to be responding
@@ -199,19 +232,50 @@ class CellxgeneContainerManager:
         
         while time.time() - start_time < timeout:
             try:
+                # Check if container is still running (not OOM killed)
+                container.reload()
+                state = container.attrs.get('State', {})
+                status = container.status
+                
+                if status == 'exited':
+                    exit_code = state.get('ExitCode', 0)
+                    oom_killed = state.get('OOMKilled', False)
+                    
+                    self.logger.error(f"Container {container.name} exited during health check! Exit code: {exit_code}, OOMKilled: {oom_killed}")
+                    
+                    if oom_killed or exit_code == 137:
+                        raise RuntimeError(f"Container was killed due to out of memory (OOM). Exit code: {exit_code}")
+                    elif exit_code != 0:
+                        raise RuntimeError(f"Container exited with error code {exit_code}")
+                    else:
+                        raise RuntimeError(f"Container exited unexpectedly")
+                
                 # Try to connect to the container's health endpoint
                 req = urllib.request.Request(health_check_url, method='GET')
                 with urllib.request.urlopen(req, timeout=2) as response:
                     if response.status in [200, 301, 302]:
                         self.logger.info(f"Container {container_name} is healthy and responding")
                         return
+            except RuntimeError:
+                raise  # Re-raise our custom errors
             except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
                 # Application not ready yet, keep waiting
-                self.logger.debug(f"Waiting for {container_name} to be ready: {e}")
+                self.logger.info(f"Waiting for {container_name} to be ready: {e}")
                 time.sleep(1)
             except Exception as e:
                 self.logger.warning(f"Health check error for {container_name}: {e}")
                 time.sleep(1)
+        
+        # Timeout - do one final OOM check
+        try:
+            container.reload()
+            state = container.attrs.get('State', {})
+            if state.get('OOMKilled', False) or state.get('ExitCode') == 137:
+                raise RuntimeError(f"Container was killed due to out of memory (OOM)")
+        except RuntimeError:
+            raise
+        except:
+            pass
         
         raise RuntimeError(f"Container did not become healthy within {timeout} seconds")
     
@@ -294,6 +358,56 @@ class CellxgeneContainerManager:
             return False
         except Exception:
             return False
+    
+    def get_container_info(self, dataset_id: str) -> Optional[Dict]:
+        """Get container status information including exit code."""
+        container = None
+        port = None
+        
+        # First try to get from active containers
+        if dataset_id in self.active_containers:
+            container, port, _ = self.active_containers[dataset_id]
+        else:
+            # Container might have been killed - try to find it by name
+            container_name = f"cellxgene-{dataset_id}"
+            try:
+                container = self.client.containers.get(container_name)
+                self.logger.info(f"Found container {container_name} not in active_containers (status checking orphaned container)")
+            except docker.errors.NotFound:
+                self.logger.debug(f"Container {container_name} not found in Docker")
+                return None
+            except Exception as e:
+                self.logger.error(f"Error finding container {container_name}: {e}", exc_info=True)
+                return None
+        
+        # Get container info
+        try:
+            container.reload()
+            state = container.attrs.get('State', {})
+            
+            # If we don't have port from active_containers, try to extract from Docker
+            if port is None:
+                ports = container.attrs.get('NetworkSettings', {}).get('Ports', {})
+                # Look for the 5005/tcp port mapping
+                port_mapping = ports.get('5005/tcp', [])
+                if port_mapping and len(port_mapping) > 0:
+                    port = int(port_mapping[0].get('HostPort', 0))
+                    self.logger.debug(f"Extracted port {port} from container {dataset_id}")
+            
+            info = {
+                'status': container.status,
+                'exit_code': state.get('ExitCode', 0),
+                'oom_killed': state.get('OOMKilled', False),
+                'error': state.get('Error', ''),
+                'port': port
+            }
+            self.logger.debug(f"Container {dataset_id} info: status={info['status']}, exit_code={info['exit_code']}, oom_killed={info['oom_killed']}, port={port}")
+            return info
+        except docker.errors.NotFound:
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting container info for {dataset_id}: {e}")
+            return None
     
     def update_access_time(self, dataset_id: str):
         """Update the last access time for a container."""

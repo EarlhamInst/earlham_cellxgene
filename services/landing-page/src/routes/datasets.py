@@ -288,6 +288,7 @@ def get_dataset_status(dataset_id: str):
         JSON response with container status
     """
     try:
+        logger.info(f"Status check requested for dataset: {dataset_id}")
         catalog = current_app.config['CATALOG']
         dataset = catalog.get_by_id(dataset_id)
         
@@ -297,10 +298,18 @@ def get_dataset_status(dataset_id: str):
         # Get container manager
         container_manager = current_app.config['CONTAINER_MANAGER']
         
-        # Check if container exists and get its status
-        port = container_manager.get_container_port(dataset_id)
+        # Always check container state first (handles OOM kills and exits)
+        logger.info(f"Checking container info for {dataset_id}")
+        container_info = container_manager.get_container_info(dataset_id)
+        logger.info(f"Container info result: {container_info}")
         
-        if port is None:
+        # Get port (may be None if container not in active_containers)
+        port = container_manager.get_container_port(dataset_id)
+        logger.info(f"Container port result: {port}")
+        
+        # If no container info and no port, container truly doesn't exist
+        if container_info is None and port is None:
+            logger.info(f"{dataset_id}: No container info and no port - returning not_running")
             return jsonify({
                 'dataset_id': dataset_id,
                 'status': 'not_running',
@@ -308,12 +317,66 @@ def get_dataset_status(dataset_id: str):
                 'message': 'Container is not running'
             }), 200
         
+        # If container_info is None but port exists, container was removed unexpectedly
+        if container_info is None and port is not None:
+            logger.warning(f"{dataset_id}: Has port {port} but no container info - likely killed")
+            return jsonify({
+                'dataset_id': dataset_id,
+                'status': 'failed',
+                'ready': False,
+                'error': True,
+                'message': 'Container was unexpectedly terminated'
+            }), 200
+        
+        if container_info:
+            logger.info(f"{dataset_id}: Container status={container_info.get('status')}, oom_killed={container_info.get('oom_killed')}, exit_code={container_info.get('exit_code')}")
+            # Check OOMKilled flag first - most reliable
+            if container_info.get('oom_killed', False):
+                logger.error(f"{dataset_id}: OOM killed detected")
+                # Clean up the dead container
+                container_manager.stop_dataset(dataset_id)
+                return jsonify({
+                    'dataset_id': dataset_id,
+                    'status': 'oom_killed',
+                    'ready': False,
+                    'error': True,
+                    'message': 'Container was killed due to out of memory (OOM)'
+                }), 200
+            
+            # Check exit code for exited containers
+            if container_info.get('status') == 'exited':
+                exit_code = container_info.get('exit_code', 0)
+                logger.warning(f"Container {dataset_id} exited with code {exit_code}")
+                if exit_code == 137:
+                    # OOM kill detected via exit code
+                    container_manager.stop_dataset(dataset_id)
+                    return jsonify({
+                        'dataset_id': dataset_id,
+                        'status': 'oom_killed',
+                        'ready': False,
+                        'error': True,
+                        'message': 'Container was killed due to out of memory (OOM)'
+                    }), 200
+                elif exit_code != 0:
+                    container_manager.stop_dataset(dataset_id)
+                    return jsonify({
+                        'dataset_id': dataset_id,
+                        'status': 'failed',
+                        'ready': False,
+                        'error': True,
+                        'message': f'Container exited with code {exit_code}'
+                    }), 200
+        
         # Check if container is ready
         is_ready = container_manager.is_container_ready(dataset_id)
         
         # Update access time when checking status to prevent premature cleanup
         if is_ready:
             container_manager.update_access_time(dataset_id)
+        
+        # Get port from container_info if we don't have it from active_containers
+        if port is None and container_info:
+            port = container_info.get('port')
         
         # Construct URL
         host = request.host.split(':')[0]
@@ -357,3 +420,6 @@ def get_statistics():
         logger.error(f"Error getting statistics: {str(e)}", exc_info=True)
         error_response, status_code = format_error_response(e, 500)
         return jsonify(error_response), status_code
+
+
+

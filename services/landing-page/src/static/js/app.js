@@ -147,11 +147,12 @@ function displayDatasets(datasets) {
     noResults.style.display = 'none';
     grid.innerHTML = datasets.map(dataset => createDatasetCard(dataset)).join('');
     
-    // Add click handlers to launch buttons
+    // Add click handlers for launch buttons
     datasets.forEach(dataset => {
-        const button = document.getElementById(`launch-${dataset.id}`);
-        if (button) {
-            button.addEventListener('click', () => launchDataset(dataset.id));
+        const launchButton = document.getElementById(`launch-${dataset.id}`);
+        
+        if (launchButton) {
+            launchButton.addEventListener('click', () => launchDataset(dataset.id));
         }
     });
 }
@@ -160,6 +161,23 @@ function displayDatasets(datasets) {
  * Create HTML for a dataset card
  */
 function createDatasetCard(dataset) {
+    // Estimate loading time based on file size (rough approximation)
+    const estimateLoadingTime = (sizeStr) => {
+        if (!sizeStr) return '';
+        const match = sizeStr.match(/([\d.]+)\s*(MB|GB)/);
+        if (!match) return '';
+        const size = parseFloat(match[1]);
+        const unit = match[2];
+        const sizeInMB = unit === 'GB' ? size * 1024 : size;
+        
+        if (sizeInMB < 100) return '~30 seconds';
+        if (sizeInMB < 1000) return '~1 minute';
+        if (sizeInMB < 3000) return '~2 minutes';
+        return '~3 minutes';
+    };
+    
+    const loadTime = estimateLoadingTime(dataset.file_size_human);
+    
     return `
         <div class="dataset-card" data-id="${dataset.id}">
             <h3>${escapeHtml(dataset.display_name)}</h3>
@@ -195,12 +213,6 @@ function createDatasetCard(dataset) {
             <button id="launch-${dataset.id}" class="launch-button">
                 🚀 Launch in CellXGene
             </button>
-            <div id="progress-${dataset.id}" class="launch-progress" style="display: none;">
-                <div class="progress-bar-container">
-                    <div id="progress-bar-${dataset.id}" class="progress-bar"></div>
-                </div>
-                <div id="progress-text-${dataset.id}" class="progress-text">Loading...</div>
-            </div>
         </div>
     `;
 }
@@ -208,69 +220,97 @@ function createDatasetCard(dataset) {
 /**
  * Launch a dataset in CellXGene
  */
-async function launchDataset(datasetId) {
+async function launchDataset(datasetId, retryCount = 0) {
     const button = document.getElementById(`launch-${datasetId}`);
-    const progressContainer = document.getElementById(`progress-${datasetId}`);
-    const progressBar = document.getElementById(`progress-bar-${datasetId}`);
-    const progressText = document.getElementById(`progress-text-${datasetId}`);
-    const originalText = button.textContent;
+    const maxRetries = 2;
     
     try {
-        // Disable button and show progress bar
+        // Disable button and show spinner
         button.disabled = true;
-        button.style.display = 'none';
-        progressContainer.style.display = 'block';
-        progressBar.style.width = '0%';
-        progressText.textContent = '🚀 Launching...';
+        button.innerHTML = '<div class="spinner"></div>';
+        
+        console.log(`Launching dataset: ${datasetId}, attempt ${retryCount + 1}`);
         
         const response = await fetch(`${API_BASE}/datasets/${datasetId}/launch`, {
             method: 'POST'
         });
         
+        console.log(`Launch response status: ${response.status}`);
+        
         if (!response.ok) {
             const error = await response.json();
+            console.error(`Launch failed:`, error);
             throw new Error(error.message || 'Failed to launch dataset');
         }
         
         const data = await response.json();
+        console.log(`Launch successful, starting status polling...`);
         
-        // Show initial progress
-        progressBar.style.width = '10%';
-        progressText.textContent = '⏳ Loading data...';
-        
-        // Poll status until container is ready (with progress updates)
-        const cellxgeneUrl = await waitForContainerReady(datasetId, progressBar, progressText);
-        
-        // Complete progress
-        progressBar.style.width = '100%';
-        progressText.textContent = '✓ Ready! Opening...';
+        // Poll status until container is ready
+        const cellxgeneUrl = await waitForContainerReady(datasetId);
         
         // Open CellXGene in new window
         window.open(cellxgeneUrl, '_blank');
         
         // Reset UI after short delay
         setTimeout(() => {
-            button.style.display = 'block';
-            progressContainer.style.display = 'none';
+            button.innerHTML = '🚀 Launch in CellXGene';
             button.disabled = false;
         }, 2000);
         
         console.log(`Launched dataset: ${datasetId}`);
     } catch (error) {
-        showError('Launch Failed', error.message, 'Please check that CellXGene service is running.');
         console.error('Error launching dataset:', error);
         
-        // Reset UI
-        button.style.display = 'block';
-        progressContainer.style.display = 'none';
+        // Check if this looks like an OOM error
+        const isOOM = error.message.includes('memory') || 
+                      error.message.includes('OOM') || 
+                      error.message.includes('killed') ||
+                      error.message.includes('137');
+        
+        // Check if timeout
+        const isTimeout = error.message.includes('too long') || 
+                         error.message.includes('timeout');
+        
+        // Determine if we should retry
+        if (retryCount < maxRetries && (isOOM || isTimeout)) {
+            console.log(`Retrying launch (attempt ${retryCount + 1}/${maxRetries})...`);
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return launchDataset(datasetId, retryCount + 1);
+        }
+        
+        // Show appropriate error message
+        let errorTitle = 'Launch Failed';
+        let errorHint = 'Please try again or contact support.';
+        
+        if (isOOM) {
+            errorTitle = 'Out of Memory';
+            errorHint = 'This dataset is too large for current system resources. Try closing other running containers or contact the administrator to increase memory limits.';
+        } else if (isTimeout) {
+            errorTitle = 'Timeout';
+            errorHint = 'The dataset is taking longer than expected to load. Large files (>4GB) may need more time. You can try again or contact the administrator.';
+        }
+        
+        showError(errorTitle, error.message, errorHint);
+        
+        // Show error state on button
+        button.innerHTML = '❌ Failed - Try Again';
         button.disabled = false;
+        button.style.background = '#dc3545';
+        
+        // Reset button after 3 seconds
+        setTimeout(() => {
+            button.innerHTML = '🚀 Launch in CellXGene';
+            button.style.background = '';
+        }, 3000);
     }
 }
 
 /**
  * Wait for container to be ready by polling status endpoint
  */
-async function waitForContainerReady(datasetId, progressBar, progressText, maxAttempts = 180) {
+async function waitForContainerReady(datasetId, maxAttempts = 180) {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
             const response = await fetch(`${API_BASE}/datasets/${datasetId}/status`);
@@ -281,38 +321,35 @@ async function waitForContainerReady(datasetId, progressBar, progressText, maxAt
             
             const status = await response.json();
             
+            console.log(`Status check for ${datasetId}:`, status);
+            
+            // Check for container failure - these are fatal errors that should not be retried
+            if (status.error) {
+                console.error(`Fatal error detected for ${datasetId}:`, status);
+                if (status.status === 'oom_killed') {
+                    throw new Error('Container killed due to out of memory (OOM). This dataset is too large.');
+                } else {
+                    throw new Error(status.message || 'Container failed to start');
+                }
+            }
+            
             if (status.ready && status.cellxgene_url) {
                 return status.cellxgene_url;
             }
-            
-            // Calculate progress (10-95% range, with different rates for different phases)
-            const elapsed = attempt + 1;
-            let progress, message;
-            
-            if (elapsed < 30) {
-                // Fast progress in first 30 seconds (10-50%)
-                progress = 10 + (elapsed / 30) * 40;
-                message = `⏳ Loading (${elapsed}s)...`;
-            } else if (elapsed < 90) {
-                // Slower progress for large files (50-80%)
-                progress = 50 + ((elapsed - 30) / 60) * 30;
-                message = `⏳ Loading large file (${elapsed}s)...`;
-            } else {
-                // Very slow progress near the end (80-95%)
-                progress = 80 + ((elapsed - 90) / 90) * 15;
-                message = `⏳ Almost ready (${elapsed}s)...`;
-            }
-            
-            // Update progress bar and text
-            progressBar.style.width = `${Math.min(progress, 95)}%`;
-            progressText.textContent = message;
             
             // Wait 1 second before next check
             await new Promise(resolve => setTimeout(resolve, 1000));
             
         } catch (error) {
-            console.warn(`Status check attempt ${attempt + 1} failed:`, error);
-            // Continue trying
+            // If the error message indicates a fatal container failure, propagate it immediately
+            if (error.message.includes('OOM') || 
+                error.message.includes('killed') || 
+                error.message.includes('Container failed')) {
+                throw error;  // Don't retry, let the outer catch handle it
+            }
+            
+            // For other errors (network issues, etc), log and continue trying
+            console.warn(`Status check attempt ${attempt + 1} failed:`, error.message);
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
