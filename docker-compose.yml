@@ -31,41 +31,26 @@ services:
       - cellxgene-network
     restart: unless-stopped
 
+  # cellxgene service is now spawned dynamically by landing-page
+  # Build the image but don't run as a persistent service
   cellxgene:
     build:
       context: ./services/cellxgene
       dockerfile: Dockerfile
-    container_name: cellxgene-service
+    image: cellxgene_stack-cellxgene:latest
+    profiles:
+      - manual  # Only start if explicitly requested with --profile manual
+    container_name: cellxgene-service-manual
     environment:
       - DATA_DIRECTORY=/data/datasets
-      #- DATA_DIRECTORY=${DATA_DIRECTORY:-/data/datasets}
-      #- WORKERS=${CELLXGENE_WORKERS:-10}
       - WORKERS=2
       - TIMEOUT=${CELLXGENE_TIMEOUT_SECONDS:-300}
     volumes:
-      #- ./data/datasets:${DATA_DIRECTORY:-/data/datasets}:ro
-      
       - ${HOST_DATA_DIRECTORY:-./data/datasets}:/data/datasets:ro   
-    
     ports:
       - "${CELLXGENE_PORT:-5005}:5005"
-    deploy:
-      resources:
-        limits:
-          #memory: 210G  # 10 workers × 20GB + 10GB overhead
-          memory: 2GB
-        reservations:
-          #memory: 200G
-          memory: 2GB
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
     networks:
       - cellxgene-network
-    restart: unless-stopped
 
   nginx:
     build:
@@ -76,8 +61,6 @@ services:
       - "${NGINX_PORT:-80}:80"
     depends_on:
       landing-page:
-        condition: service_healthy
-      cellxgene:
         condition: service_healthy
     volumes:
       - ./services/nginx/nginx.conf:/etc/nginx/nginx.conf:ro

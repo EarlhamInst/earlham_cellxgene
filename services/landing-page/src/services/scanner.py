@@ -10,6 +10,7 @@ Constitutional Alignment:
 """
 
 import json
+import gc
 from pathlib import Path
 from typing import List, Tuple, Dict, Any
 import logging
@@ -101,6 +102,9 @@ class DatasetScanner:
                 error_msg = f"Failed to load dataset {h5ad_file.name}: {str(e)}"
                 invalid_datasets.append((h5ad_file.stem, [error_msg]))
                 self.logger.error(error_msg)
+            finally:
+                # Force garbage collection after each dataset to free memory
+                gc.collect()
         
         self.logger.info(
             f"Scan complete: {len(valid_datasets)} valid, {len(invalid_datasets)} invalid"
@@ -178,8 +182,8 @@ class DatasetScanner:
         Raises:
             ValueError: If minimal AnnData structure is invalid
         """
-        # Read h5ad file
-        adata = anndata.read_h5ad(h5ad_path)
+        # Read h5ad file in backed mode to avoid loading entire matrix into memory
+        adata = anndata.read_h5ad(h5ad_path, backed='r')
         
         # Validate minimal AnnData structure
         if adata.X is None:
@@ -244,6 +248,10 @@ class DatasetScanner:
         for field in optional_fields:
             if field in adata.uns and field not in metadata:
                 metadata[field] = adata.uns[field]
+        
+        # Close the file explicitly to free memory
+        if hasattr(adata, 'file') and adata.file is not None:
+            adata.file.close()
         
         return metadata
     

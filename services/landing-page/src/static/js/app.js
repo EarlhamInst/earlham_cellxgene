@@ -195,6 +195,12 @@ function createDatasetCard(dataset) {
             <button id="launch-${dataset.id}" class="launch-button">
                 🚀 Launch in CellXGene
             </button>
+            <div id="progress-${dataset.id}" class="launch-progress" style="display: none;">
+                <div class="progress-bar-container">
+                    <div id="progress-bar-${dataset.id}" class="progress-bar"></div>
+                </div>
+                <div id="progress-text-${dataset.id}" class="progress-text">Loading...</div>
+            </div>
         </div>
     `;
 }
@@ -204,12 +210,18 @@ function createDatasetCard(dataset) {
  */
 async function launchDataset(datasetId) {
     const button = document.getElementById(`launch-${datasetId}`);
+    const progressContainer = document.getElementById(`progress-${datasetId}`);
+    const progressBar = document.getElementById(`progress-bar-${datasetId}`);
+    const progressText = document.getElementById(`progress-text-${datasetId}`);
     const originalText = button.textContent;
     
     try {
-        // Disable button and show loading state
+        // Disable button and show progress bar
         button.disabled = true;
-        button.textContent = '🚀 Launching...';
+        button.style.display = 'none';
+        progressContainer.style.display = 'block';
+        progressBar.style.width = '0%';
+        progressText.textContent = '🚀 Launching...';
         
         const response = await fetch(`${API_BASE}/datasets/${datasetId}/launch`, {
             method: 'POST'
@@ -222,19 +234,24 @@ async function launchDataset(datasetId) {
         
         const data = await response.json();
         
-        // Show starting message
-        button.textContent = '⏳ Starting...';
+        // Show initial progress
+        progressBar.style.width = '10%';
+        progressText.textContent = '⏳ Loading data...';
         
-        // Poll status until container is ready
-        const cellxgeneUrl = await waitForContainerReady(datasetId, button);
+        // Poll status until container is ready (with progress updates)
+        const cellxgeneUrl = await waitForContainerReady(datasetId, progressBar, progressText);
+        
+        // Complete progress
+        progressBar.style.width = '100%';
+        progressText.textContent = '✓ Ready! Opening...';
         
         // Open CellXGene in new window
         window.open(cellxgeneUrl, '_blank');
         
-        // Reset button
-        button.textContent = '✓ Launched!';
+        // Reset UI after short delay
         setTimeout(() => {
-            button.textContent = originalText;
+            button.style.display = 'block';
+            progressContainer.style.display = 'none';
             button.disabled = false;
         }, 2000);
         
@@ -243,8 +260,9 @@ async function launchDataset(datasetId) {
         showError('Launch Failed', error.message, 'Please check that CellXGene service is running.');
         console.error('Error launching dataset:', error);
         
-        // Reset button
-        button.textContent = originalText;
+        // Reset UI
+        button.style.display = 'block';
+        progressContainer.style.display = 'none';
         button.disabled = false;
     }
 }
@@ -252,7 +270,7 @@ async function launchDataset(datasetId) {
 /**
  * Wait for container to be ready by polling status endpoint
  */
-async function waitForContainerReady(datasetId, button, maxAttempts = 30) {
+async function waitForContainerReady(datasetId, progressBar, progressText, maxAttempts = 180) {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
             const response = await fetch(`${API_BASE}/datasets/${datasetId}/status`);
@@ -267,9 +285,27 @@ async function waitForContainerReady(datasetId, button, maxAttempts = 30) {
                 return status.cellxgene_url;
             }
             
-            // Update button with status message
+            // Calculate progress (10-95% range, with different rates for different phases)
             const elapsed = attempt + 1;
-            button.textContent = `⏳ Starting (${elapsed}s)...`;
+            let progress, message;
+            
+            if (elapsed < 30) {
+                // Fast progress in first 30 seconds (10-50%)
+                progress = 10 + (elapsed / 30) * 40;
+                message = `⏳ Loading (${elapsed}s)...`;
+            } else if (elapsed < 90) {
+                // Slower progress for large files (50-80%)
+                progress = 50 + ((elapsed - 30) / 60) * 30;
+                message = `⏳ Loading large file (${elapsed}s)...`;
+            } else {
+                // Very slow progress near the end (80-95%)
+                progress = 80 + ((elapsed - 90) / 90) * 15;
+                message = `⏳ Almost ready (${elapsed}s)...`;
+            }
+            
+            // Update progress bar and text
+            progressBar.style.width = `${Math.min(progress, 95)}%`;
+            progressText.textContent = message;
             
             // Wait 1 second before next check
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -281,7 +317,7 @@ async function waitForContainerReady(datasetId, button, maxAttempts = 30) {
         }
     }
     
-    throw new Error('Container took too long to start. Please try again.');
+    throw new Error('Container took too long to start (>3 minutes). Large files may require more time.');
 }
 
 /**

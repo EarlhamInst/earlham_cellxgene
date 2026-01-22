@@ -18,8 +18,8 @@
     --text-light: #636e72;           /* Medium grey for secondary text */
     --border-color: #dfe6e9;         /* Light grey borders */
     --hover-color: #8d1510;          /* Darker red on hover */
-    --shadow: 0 2px 4px rgba(198, 31, 22, 0.1);
-    --shadow-hover: 0 4px 12px rgba(198, 31, 22, 0.15);
+    --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Reset and Base Styles */
@@ -240,6 +240,9 @@ body {
     padding: 1.5rem;
     cursor: pointer;
     transition: transform 0.3s, box-shadow 0.3s;
+    /* Prevent expansion from long text */
+    overflow: hidden;
+    min-width: 0;
 }
 
 .dataset-card:hover {
@@ -251,6 +254,10 @@ body {
     color: var(--primary-color);
     margin-bottom: 0.5rem;
     font-size: 1.25rem;
+    /* Handle long names */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .dataset-card .description {
@@ -258,6 +265,11 @@ body {
     font-size: 0.9rem;
     margin-bottom: 1rem;
     line-height: 1.4;
+    /* Limit description to 3 lines */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .dataset-metadata {
@@ -271,6 +283,8 @@ body {
 .metadata-item {
     display: flex;
     flex-direction: column;
+    /* Prevent metadata overflow */
+    min-width: 0;
 }
 
 .metadata-label {
@@ -283,6 +297,10 @@ body {
 .metadata-value {
     color: var(--text-color);
     font-weight: 600;
+    /* Truncate long values */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .launch-button {
@@ -305,6 +323,60 @@ body {
 
 .launch-button:active {
     transform: translateY(0);
+}
+
+/* Launch Progress Bar */
+.launch-progress {
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 24px;
+    background: #f0f0f0;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--hover-color));
+    border-radius: 12px;
+    transition: width 0.5s ease;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(198, 31, 22, 0.2);
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.progress-text {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    margin-top: 0.5rem;
+    font-weight: 500;
 }
 
 /* No Results */

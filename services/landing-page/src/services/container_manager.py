@@ -134,7 +134,8 @@ class CellxgeneContainerManager:
         self.logger.info(f"Launching CellXGene for {dataset_id} ({dataset_filename}) on port {port}")
         
         try:
-            # Launch container
+            # Launch container with memory limit to prevent OOM issues
+            # Default 4GB should handle most datasets; very large datasets may need more
             container = self.client.containers.run(
                 "cellxgene_stack-cellxgene",
                 detach=True,
@@ -151,12 +152,15 @@ class CellxgeneContainerManager:
                     }
                 },
                 network=self.network_name,
+                mem_limit='4g',  # Limit memory to prevent OOM crashes
+                memswap_limit='4g',  # Disable swap for consistent performance
                 remove=True,  # Auto-remove when stopped
                 auto_remove=True
             )
             
             # Wait for container to be healthy
-            self._wait_for_healthy(container, timeout=30)
+            # Large files (e.g., 4.5GB) can take 2-3 minutes to load
+            self._wait_for_healthy(container, timeout=180)
             
             self.active_containers[dataset_id] = (container, port, datetime.now())
             self.logger.info(f"Successfully launched container for {dataset_id} on port {port}")
