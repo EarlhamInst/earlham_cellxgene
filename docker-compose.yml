@@ -32,15 +32,17 @@ services:
     restart: unless-stopped
 
   # cellxgene service is now spawned dynamically by landing-page
-  # Build the image but don't run as a persistent service
+  # Build the image for dynamic container spawning
+  # This service builds the image but doesn't run as a persistent container
+  # The landing-page service will spawn containers from this image on-demand
   cellxgene:
     build:
       context: ./services/cellxgene
       dockerfile: Dockerfile
     image: cellxgene_stack-cellxgene:latest
-    profiles:
-      - manual  # Only start if explicitly requested with --profile manual
-    container_name: cellxgene-service-manual
+    # Use 'deploy' with replicas: 0 to build image without running service
+    deploy:
+      replicas: 0
     environment:
       - DATA_DIRECTORY=/data/datasets
       - WORKERS=2
