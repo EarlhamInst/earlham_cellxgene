@@ -7,7 +7,8 @@ This guide covers deploying CellXGene Explorer on a remote VM (Ubuntu, CentOS, o
 - **Operating System**: Ubuntu 20.04+ / CentOS 8+ / Debian 11+
 - **Docker**: Version 20.10 or higher
 - **Docker Compose**: Version 2.0 or higher
-- **RAM**: Minimum 4GB, recommended 32GB+ for multiple concurrent users
+- **CPU**: Recommended 16 cores for production
+- **RAM**: Minimum 8GB for testing, recommended 48GB+ for production (10 workers)
 - **Disk Space**: 50GB+ (depending on dataset sizes)
 - **Network**: Open ports 80 (HTTP) and optionally 443 (HTTPS)
 
@@ -106,10 +107,13 @@ LANDING_PAGE_PORT=8000     # Internal - usually doesn't need changing
 CELLXGENE_PORT=5005        # Internal - usually doesn't need changing
 
 # Resource Limits - Adjust based on your VM's RAM
-CELLXGENE_WORKERS=2        # For 8GB RAM (4GB total for CellXGene)
-# CELLXGENE_WORKERS=5      # For 16GB RAM (10GB total)
-# CELLXGENE_WORKERS=10     # For 32GB+ RAM (20GB total)
-CELLXGENE_MEMORY_PER_WORKER_GB=2
+# Production (16 cores, 48GB RAM):
+CELLXGENE_WORKERS=10
+CELLXGENE_MEMORY_PER_WORKER_GB=4
+
+# Development/Testing configurations:
+# CELLXGENE_WORKERS=2      # For 8GB RAM (lighter workload)
+# CELLXGENE_WORKERS=5      # For 16GB RAM (moderate workload)
 
 # Debug Settings - Keep false in production
 LANDING_PAGE_DEBUG=false
@@ -118,13 +122,13 @@ LANDING_PAGE_LOG_LEVEL=INFO
 
 ### Memory Recommendations by VM Size
 
-| VM RAM | CELLXGENE_WORKERS | Max Concurrent Datasets |
-|--------|-------------------|------------------------|
-| 4 GB   | 1                 | 1                      |
-| 8 GB   | 2                 | 2                      |
-| 16 GB  | 4                 | 4                      |
-| 32 GB  | 8                 | 8                      |
-| 64 GB+ | 10                | 10+                    |
+| VM RAM | CPU Cores | CELLXGENE_WORKERS | Memory per Worker | Max Concurrent Datasets |
+|--------|-----------|-------------------|-------------------|------------------------|
+| 8 GB   | 4         | 2                 | 2GB               | 2                      |
+| 16 GB  | 8         | 4                 | 3GB               | 4                      |
+| 32 GB  | 12        | 6                 | 4GB               | 6                      |
+| 48 GB  | 16        | 10                | 4GB               | 10 (Production)        |
+| 64 GB+ | 16+       | 12                | 4GB               | 12+                    |
 
 ## Step 4: Prepare Data Directory
 
@@ -399,11 +403,12 @@ NGINX_PROXY_READ_TIMEOUT=600s
 
 ### For Many Concurrent Users
 ```bash
-# Increase worker count if you have RAM
+# Production configuration (16 cores, 48GB RAM)
 CELLXGENE_WORKERS=10
+CELLXGENE_MEMORY_PER_WORKER_GB=4
 
-# Each active dataset needs ~2-4GB RAM
-# Plan for: (CELLXGENE_WORKERS × 2GB) + 4GB for system
+# Each active dataset needs ~4GB RAM
+# Plan for: (CELLXGENE_WORKERS × 4GB) + 8GB for system = 48GB total
 ```
 
 ## Security Best Practices

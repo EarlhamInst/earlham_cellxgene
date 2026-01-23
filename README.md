@@ -26,7 +26,7 @@ A self-contained Docker-based environment for exploring curated single-cell data
 ### Prerequisites
 
 - Docker 20.10+ and Docker Compose 2.0+
-- 210GB+ available RAM for full 10-worker configuration
+- 48GB+ available RAM (recommended: 16 cores, 48GB RAM for 10-worker configuration)
 - Linux host (Ubuntu 20.04+, CentOS 8+) or macOS with Docker Desktop
 
 ### Installation
@@ -110,7 +110,8 @@ docker-compose up -d
 - **Dynamic CellXGene Containers**: On-demand instances
   - Spawned automatically when dataset is launched
   - Each dataset gets isolated container on unique port (5006-5100)
-  - 4GB memory limit per container to prevent OOM crashes
+  - 4GB memory limit per container (configurable via CELLXGENE_MEMORY_PER_WORKER_GB)
+  - Production spec: 10 workers on 16-core, 48GB RAM VM
   - Automatic cleanup after 48 hours of inactivity
   - Health checking ensures ready before user access
   - 180-second startup timeout for large files (4.5GB+)
@@ -155,10 +156,18 @@ Access at `/admin` to:
 Edit `.env` to customize:
 
 - **Ports**: Change `NGINX_PORT`, `LANDING_PAGE_PORT`, `CELLXGENE_PORT`
-- **Workers**: Adjust `CELLXGENE_WORKERS` for static service (if used)
-- **Memory**: Modify `CELLXGENE_MEMORY_PER_WORKER_GB`
+- **Workers**: Adjust `CELLXGENE_WORKERS` (default: 10 for production)
+- **Memory**: Modify `CELLXGENE_MEMORY_PER_WORKER_GB` (default: 4GB per worker)
 - **Host Paths**: Set `HOST_DATA_DIRECTORY` and `HOST_LOG_DIRECTORY` to absolute paths on your host machine
 - **Container Paths**: Set `DATA_DIRECTORY`, `LOG_DIRECTORY` (internal container paths)
+
+**Production Configuration** (16 cores, 48GB RAM):
+- `CELLXGENE_WORKERS=10`
+- `CELLXGENE_MEMORY_PER_WORKER_GB=4`
+
+**Development Configuration** (8GB RAM):
+- `CELLXGENE_WORKERS=2`
+- `CELLXGENE_MEMORY_PER_WORKER_GB=2`
 
 **Important**: Before deploying, copy `.env.example` to `.env` and update `HOST_DATA_DIRECTORY` and `HOST_LOG_DIRECTORY` with your actual paths.
 
