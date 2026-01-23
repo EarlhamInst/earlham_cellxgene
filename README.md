@@ -193,17 +193,21 @@ adata.uns['metadata'] = {
 adata.write_h5ad("your_dataset.h5ad")
 ```
 
+## Documentation
+
+All documentation is located in the `docs/` directory:
+
+- **[Architecture](docs/architecture.md)** - System design, components, and data flow
+- **[Deployment](docs/deployment.md)** - Remote VM deployment guide (Ubuntu/CentOS)
+- **[API Documentation](docs/api-documentation.md)** - REST API reference
+- **[Adding Datasets](docs/adding-datasets.md)** - How to add new datasets
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
+- **[Dynamic Containers](docs/dynamic-containers.md)** - Container management details
+- **[Inactivity Timeout](docs/inactivity-timeout.md)** - Auto-cleanup system
+- **[Earlham Styling](docs/earlham-styling.md)** - Branding and design guidelines
+- **[CI Fixes](docs/ci-fixes.md)** - CI/CD configuration notes
+
 ## Development
-
-See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation.
-
-See [docs/deployment.md](docs/deployment.md) for OpenNebula/CyVerse deployment instructions.
-
-See [INACTIVITY_TIMEOUT.md](INACTIVITY_TIMEOUT.md) for details on automatic container cleanup.
-
-See [EARLHAM_STYLING.md](EARLHAM_STYLING.md) for branding and design guidelines.
-
-## Testing
 
 Run tests with:
 ```bash
