@@ -173,7 +173,7 @@ class CellxgeneContainerManager:
             # Launch container with memory limit to prevent OOM issues
             # Default 4GB should handle most datasets; very large datasets may need more
             container = self.client.containers.run(
-                "cellxgene_stack-cellxgene",
+                "cellxgene_stack-cellxgene:latest",
                 detach=True,
                 name=f"cellxgene-{dataset_id}",
                 environment={
