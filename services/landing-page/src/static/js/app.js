@@ -238,9 +238,13 @@ async function launchDataset(datasetId, retryCount = 0) {
         console.log(`Launch response status: ${response.status}`);
         
         if (!response.ok) {
-            const error = await response.json();
-            console.error(`Launch failed:`, error);
-            throw new Error(error.message || 'Failed to launch dataset');
+            const errorData = await response.json();
+            console.error(`Launch failed:`, errorData);
+            // Create error object with full context
+            const error = new Error(errorData.message || 'Failed to launch dataset');
+            error.errorType = errorData.error_type;
+            error.recoveryHint = errorData.recovery_hint;
+            throw error;
         }
         
         const data = await response.json();
@@ -266,14 +270,16 @@ async function launchDataset(datasetId, retryCount = 0) {
         const isOOM = error.message.includes('memory') || 
                       error.message.includes('OOM') || 
                       error.message.includes('killed') ||
-                      error.message.includes('137');
+                      error.message.includes('137') ||
+                      error.errorType === 'ContainerLaunchError';
         
         // Check if timeout
         const isTimeout = error.message.includes('too long') || 
                          error.message.includes('timeout');
         
-        // Determine if we should retry
-        if (retryCount < maxRetries && (isOOM || isTimeout)) {
+        // DON'T retry OOM errors - they will just fail again
+        // Only retry timeouts
+        if (retryCount < maxRetries && isTimeout && !isOOM) {
             console.log(`Retrying launch (attempt ${retryCount + 1}/${maxRetries})...`);
             // Wait a bit before retrying
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -282,14 +288,19 @@ async function launchDataset(datasetId, retryCount = 0) {
         
         // Show appropriate error message
         let errorTitle = 'Launch Failed';
-        let errorHint = 'Please try again or contact support.';
+        let errorHint = error.recoveryHint || 'Please try again or contact support.';
         
         if (isOOM) {
             errorTitle = 'Out of Memory';
-            errorHint = 'This dataset is too large for current system resources. Try closing other running containers or contact the administrator to increase memory limits.';
+            // Use the hint from API if available, otherwise use default
+            if (!error.recoveryHint) {
+                errorHint = 'This dataset is too large for current system resources. Try closing other running containers or contact the administrator to increase memory limits.';
+            }
         } else if (isTimeout) {
             errorTitle = 'Timeout';
-            errorHint = 'The dataset is taking longer than expected to load. Large files (>4GB) may need more time. You can try again or contact the administrator.';
+            if (!error.recoveryHint) {
+                errorHint = 'The dataset is taking longer than expected to load. Large files (>4GB) may need more time. You can try again or contact the administrator.';
+            }
         }
         
         showError(errorTitle, error.message, errorHint);
@@ -459,6 +470,9 @@ function showError(title, message, hint) {
     document.getElementById('error-text').textContent = message;
     document.getElementById('error-hint').textContent = hint || '';
     errorDiv.style.display = 'block';
+    
+    // Scroll to error message so user sees it
+    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /**
