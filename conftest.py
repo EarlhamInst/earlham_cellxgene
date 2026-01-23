@@ -218,18 +218,36 @@ def empty_h5ad_file(temp_data_dir: Path) -> Path:
 # Markers for test categorization
 def pytest_configure(config):
     """Configure custom markers."""
-    config.addinivalue_line(
-        "markers", "unit: mark test as a unit test"
-    )
+    config.addinivalue_line("markers", "unit: mark test as a unit test")
     config.addinivalue_line(
         "markers", "integration: mark test as an integration test"
     )
-    config.addinivalue_line(
-        "markers", "contract: mark test as a contract test"
-    )
-    config.addinivalue_line(
-        "markers", "e2e: mark test as an end-to-end test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "contract: mark test as a contract test")
+    config.addinivalue_line("markers", "e2e: mark test as an end-to-end test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
+
+
+def pytest_collection_modifyitems(config, items):
+    """
+    Automatically mark tests based on their directory location.
+    
+    This allows running tests by category without manually adding markers:
+    - tests in */unit/ directories are marked as 'unit'
+    - tests in */integration/ directories are marked as 'integration'
+    - tests in */contract/ directories are marked as 'contract'
+    - tests in */e2e/ directories are marked as 'e2e'
+    """
+    for item in items:
+        # Get the test file path relative to project root
+        rel_path = Path(item.fspath).relative_to(Path(config.rootdir))
+        parts = rel_path.parts
+
+        # Auto-mark based on directory structure
+        if "unit" in parts:
+            item.add_marker(pytest.mark.unit)
+        elif "integration" in parts:
+            item.add_marker(pytest.mark.integration)
+        elif "contract" in parts:
+            item.add_marker(pytest.mark.contract)
+        elif "e2e" in parts:
+            item.add_marker(pytest.mark.e2e)
