@@ -15,14 +15,14 @@ from typing import Optional, List
 class CellXGeneExplorerError(Exception):
     """
     Base exception for all CellXGene Explorer errors.
-    
+
     All custom exceptions should inherit from this class.
     """
-    
+
     def __init__(self, message: str, recovery_hint: Optional[str] = None):
         """
         Initialize error with message and optional recovery hint.
-        
+
         Args:
             message: Error message describing what went wrong
             recovery_hint: Optional hint about how to fix the error
@@ -30,26 +30,23 @@ class CellXGeneExplorerError(Exception):
         self.message = message
         self.recovery_hint = recovery_hint
         super().__init__(self.message)
-    
+
     def to_dict(self) -> dict:
         """Convert error to dictionary for JSON API responses."""
-        result = {
-            'error_type': self.__class__.__name__,
-            'message': self.message
-        }
+        result = {"error_type": self.__class__.__name__, "message": self.message}
         if self.recovery_hint:
-            result['recovery_hint'] = self.recovery_hint
+            result["recovery_hint"] = self.recovery_hint
         return result
 
 
 class DatasetNotFoundError(CellXGeneExplorerError):
     """
     Raised when a requested dataset cannot be found.
-    
+
     Example:
         User requests a dataset by ID that doesn't exist in the catalog.
     """
-    
+
     def __init__(self, dataset_id: str):
         message = f"Dataset not found: {dataset_id}"
         recovery_hint = (
@@ -63,11 +60,11 @@ class DatasetNotFoundError(CellXGeneExplorerError):
 class ValidationError(CellXGeneExplorerError):
     """
     Raised when data validation fails.
-    
+
     Example:
         h5ad file is corrupted, embedded metadata is invalid, etc.
     """
-    
+
     def __init__(self, item: str, errors: List[str]):
         message = f"Validation failed for {item}: {'; '.join(errors)}"
         recovery_hint = (
@@ -82,11 +79,11 @@ class ValidationError(CellXGeneExplorerError):
 class ServiceUnavailableError(CellXGeneExplorerError):
     """
     Raised when a required service (e.g., CellXGene) is unavailable.
-    
+
     Example:
         CellXGene service is not responding or is unhealthy.
     """
-    
+
     def __init__(self, service_name: str, details: Optional[str] = None):
         message = f"Service unavailable: {service_name}"
         if details:
@@ -102,16 +99,18 @@ class ServiceUnavailableError(CellXGeneExplorerError):
 class ContainerLaunchError(CellXGeneExplorerError):
     """
     Raised when a container fails to launch.
-    
+
     Example:
         Container is OOM killed, exits with error, or fails health check.
     """
-    
-    def __init__(self, dataset_id: str, reason: str, recovery_hint: Optional[str] = None):
+
+    def __init__(
+        self, dataset_id: str, reason: str, recovery_hint: Optional[str] = None
+    ):
         message = f"Failed to launch container for dataset {dataset_id}: {reason}"
         if not recovery_hint:
             # Check if this is an OOM error
-            if 'OOM' in reason or 'memory' in reason.lower() or '137' in reason:
+            if "OOM" in reason or "memory" in reason.lower() or "137" in reason:
                 recovery_hint = (
                     "This dataset is too large for the current memory limits. "
                     "Try closing other running containers or contact the administrator to increase memory limits."
@@ -126,15 +125,19 @@ class ContainerLaunchError(CellXGeneExplorerError):
 class ConfigurationError(CellXGeneExplorerError):
     """
     Raised when configuration is invalid or missing.
-    
+
     Example:
         Required environment variable is not set, invalid port number, etc.
     """
-    
+
     def __init__(self, message: str, config_var: Optional[str] = None):
-        recovery_hint = "Check your .env file and docker-compose.yml for correct configuration."
+        recovery_hint = (
+            "Check your .env file and docker-compose.yml for correct configuration."
+        )
         if config_var:
-            recovery_hint = f"Set the {config_var} environment variable. {recovery_hint}"
+            recovery_hint = (
+                f"Set the {config_var} environment variable. {recovery_hint}"
+            )
         super().__init__(message, recovery_hint)
         self.config_var = config_var
 
@@ -142,11 +145,11 @@ class ConfigurationError(CellXGeneExplorerError):
 class MetadataValidationError(CellXGeneExplorerError):
     """
     Raised when dataset metadata fails validation.
-    
+
     Example:
         Embedded metadata is missing required fields, has invalid values, etc.
     """
-    
+
     def __init__(self, dataset_name: str, field: str, issue: str):
         message = f"Metadata validation failed for {dataset_name}: {field} - {issue}"
         recovery_hint = (
@@ -162,11 +165,11 @@ class MetadataValidationError(CellXGeneExplorerError):
 class DatasetLaunchError(CellXGeneExplorerError):
     """
     Raised when launching CellXGene for a dataset fails.
-    
+
     Example:
         Dataset file is locked, CellXGene fails to load the file, etc.
     """
-    
+
     def __init__(self, dataset_id: str, reason: str):
         message = f"Failed to launch CellXGene for dataset {dataset_id}: {reason}"
         recovery_hint = (
@@ -181,11 +184,11 @@ class DatasetLaunchError(CellXGeneExplorerError):
 class FileAccessError(CellXGeneExplorerError):
     """
     Raised when file operations fail.
-    
+
     Example:
         Cannot read h5ad file, cannot write logs, permission denied, etc.
     """
-    
+
     def __init__(self, filepath: str, operation: str, reason: str):
         message = f"File access error during {operation} on {filepath}: {reason}"
         recovery_hint = (
@@ -200,11 +203,11 @@ class FileAccessError(CellXGeneExplorerError):
 def format_error_response(error: Exception, status_code: int = 500) -> tuple:
     """
     Format an exception as an API error response.
-    
+
     Args:
         error: The exception to format
         status_code: HTTP status code
-        
+
     Returns:
         Tuple of (response_dict, status_code)
     """
@@ -213,7 +216,7 @@ def format_error_response(error: Exception, status_code: int = 500) -> tuple:
     else:
         # Generic error response for unexpected exceptions
         return {
-            'error_type': 'InternalServerError',
-            'message': 'An unexpected error occurred',
-            'recovery_hint': 'Check the server logs for details'
+            "error_type": "InternalServerError",
+            "message": "An unexpected error occurred",
+            "recovery_hint": "Check the server logs for details",
         }, status_code

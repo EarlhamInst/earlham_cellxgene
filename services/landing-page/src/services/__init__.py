@@ -2,4 +2,4 @@
 from .scanner import DatasetScanner
 from .catalog import DatasetCatalog
 
-__all__ = ['DatasetScanner', 'DatasetCatalog']
+__all__ = ["DatasetScanner", "DatasetCatalog"]
