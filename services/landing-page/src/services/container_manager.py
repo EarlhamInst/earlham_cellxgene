@@ -15,6 +15,7 @@ import time
 from datetime import datetime
 from typing import Dict, Tuple, Optional
 from pathlib import Path
+from ..errors import ContainerLaunchError
 
 
 class CellxgeneContainerManager:
@@ -167,9 +168,12 @@ class CellxgeneContainerManager:
             
             return port
             
+        except RuntimeError as e:
+            self.logger.error(f"Failed to launch container for {dataset_id}: {e}", exc_info=True)
+            raise ContainerLaunchError(dataset_id, str(e))
         except Exception as e:
             self.logger.error(f"Failed to launch container for {dataset_id}: {e}", exc_info=True)
-            raise RuntimeError(f"Failed to launch CellXGene container: {str(e)}")
+            raise ContainerLaunchError(dataset_id, f"Unexpected error: {str(e)}")
     
     def _wait_for_healthy(self, container, timeout: int = 60):
         """Wait for container to be healthy and responding."""

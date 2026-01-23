@@ -99,6 +99,30 @@ class ServiceUnavailableError(CellXGeneExplorerError):
         self.service_name = service_name
 
 
+class ContainerLaunchError(CellXGeneExplorerError):
+    """
+    Raised when a container fails to launch.
+    
+    Example:
+        Container is OOM killed, exits with error, or fails health check.
+    """
+    
+    def __init__(self, dataset_id: str, reason: str, recovery_hint: Optional[str] = None):
+        message = f"Failed to launch container for dataset {dataset_id}: {reason}"
+        if not recovery_hint:
+            # Check if this is an OOM error
+            if 'OOM' in reason or 'memory' in reason.lower() or '137' in reason:
+                recovery_hint = (
+                    "This dataset is too large for the current memory limits. "
+                    "Try closing other running containers or contact the administrator to increase memory limits."
+                )
+            else:
+                recovery_hint = "Check the server logs for detailed error information and try again."
+        super().__init__(message, recovery_hint)
+        self.dataset_id = dataset_id
+        self.reason = reason
+
+
 class ConfigurationError(CellXGeneExplorerError):
     """
     Raised when configuration is invalid or missing.
