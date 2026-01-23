@@ -23,10 +23,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-cov pytest-timeout
-        if [ -f services/landing-page/requirements.txt ]; then
-          pip install -r services/landing-page/requirements.txt
-        fi
+        pip install pytest pytest-cov pytest-timeout pytest-mock
+        # Install full requirements to ensure all imports work
+        pip install -r services/landing-page/requirements.txt
     
     - name: Create test directories
       run: |

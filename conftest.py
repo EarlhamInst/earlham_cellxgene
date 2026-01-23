@@ -11,9 +11,16 @@ Constitutional Alignment:
 import pytest
 import tempfile
 import json
+import sys
 from pathlib import Path
 from typing import Dict, List
 import shutil
+
+# Add the landing page service directory to Python path for imports
+# This allows tests to import from 'src' package
+landing_page_dir = Path(__file__).parent / "services" / "landing-page"
+if str(landing_page_dir) not in sys.path:
+    sys.path.insert(0, str(landing_page_dir))
 
 
 @pytest.fixture
