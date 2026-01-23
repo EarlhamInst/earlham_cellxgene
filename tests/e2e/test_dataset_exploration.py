@@ -236,8 +236,8 @@ class TestCellXGeneLaunch:
         
         dataset_id = data['datasets'][0]['id']
         
-        # Launch dataset
-        launch_response = requests.post(f"{api_base_url}/datasets/{dataset_id}/launch", timeout=10)
+        # Launch dataset (timeout=30 to handle OOM scenarios which take ~20s to detect)
+        launch_response = requests.post(f"{api_base_url}/datasets/{dataset_id}/launch", timeout=30)
         
         if launch_response.status_code == 200:
             launch_data = launch_response.json()
