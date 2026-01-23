@@ -205,7 +205,8 @@ def launch_dataset(dataset_id: str):
         return jsonify({
             'dataset_id': dataset_id,
             'dataset_name': dataset.display_name,
-            'cellxgene_url': cellxgene_url,
+            'viewer_url': cellxgene_url,
+            'cellxgene_url': cellxgene_url,  # Legacy field for compatibility
             'container_port': port,
             'status': 'ready',
             'timeout_info': 'Container will be closed after 48 hours of inactivity'

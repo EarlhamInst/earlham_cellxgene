@@ -142,13 +142,13 @@ Multi-container web application structure:
 
 ### Testing & Validation
 
-- [ ] T068 [US1] Run all unit tests and verify 80%+ coverage: pytest services/landing-page/tests/unit/ --cov
-- [ ] T069 [US1] Run contract tests to validate API compliance with OpenAPI spec
-- [ ] T070 [US1] Run integration tests with Docker Compose test environment
-- [ ] T071 [US1] Run end-to-end test for complete user journey (catalog → launch → explore)
-- [ ] T072 [US1] Manual testing: verify dataset catalog displays correctly
-- [ ] T073 [US1] Manual testing: verify clicking dataset launches CellXGene
-- [ ] T074 [US1] Manual testing: verify CellXGene features work (filtering, clustering, visualization)
+- [X] T068 [US1] Run all unit tests and verify 80%+ coverage: pytest services/landing-page/tests/unit/ --cov
+- [X] T069 [US1] Run contract tests to validate API compliance with OpenAPI spec
+- [X] T070 [US1] Run integration tests with Docker Compose test environment
+- [X] T071 [US1] Run end-to-end test for complete user journey (catalog → launch → explore)
+- [X] T072 [US1] Manual testing: verify dataset catalog displays correctly
+- [X] T073 [US1] Manual testing: verify clicking dataset launches CellXGene
+- [X] T074 [US1] Manual testing: verify CellXGene features work (filtering, clustering, visualization)
 - [ ] T075 [US1] Load testing: verify 10 concurrent users can access system
 - [ ] T076 [US1] Performance testing: verify dataset launch < 30 seconds
 

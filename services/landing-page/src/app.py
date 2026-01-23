@@ -24,12 +24,13 @@ from .errors import format_error_response
 from .services.container_manager import CellxgeneContainerManager
 
 
-def create_app(config=None):
+def create_app(config=None, testing=False):
     """
     Flask application factory.
     
     Args:
         config: Optional configuration override
+        testing: If True, skip initialization and background tasks
         
     Returns:
         Configured Flask application
@@ -40,8 +41,33 @@ def create_app(config=None):
         static_folder='static'
     )
     
+    app.config['TESTING'] = testing
+    
     # Load configuration
-    if config is None:
+    if testing and config is None:
+        # Create a minimal test configuration
+        from .config import ServiceConfig
+        import tempfile
+        from pathlib import Path
+        
+        # Use temp directories for testing
+        temp_dir = Path(tempfile.gettempdir()) / 'cellxgene_test'
+        temp_dir.mkdir(exist_ok=True)
+        
+        service_config = ServiceConfig(
+            data_directory=temp_dir / 'datasets',
+            log_directory=temp_dir / 'logs',
+            debug=True,
+            log_level='DEBUG',
+            host='127.0.0.1',
+            port=8000,
+            cellxgene_url='http://localhost:5005',
+            enable_hot_reload=False,
+            hot_reload_interval_seconds=300
+        )
+        service_config.data_directory.mkdir(exist_ok=True)
+        service_config.log_directory.mkdir(exist_ok=True)
+    elif config is None:
         service_config = load_config()
     else:
         service_config = config
@@ -54,39 +80,47 @@ def create_app(config=None):
         enable_console=True
     )
     
-    # Run startup validation
-    logger.info("Initializing application...")
-    service_config, catalog = validate_and_initialize(logger)
-    
-    # Initialize container manager for dynamic CellXGene instances
-    # Pass both container path and host path for volume mounting
-    import os
-    host_data_dir = os.environ.get('HOST_DATA_DIRECTORY', str(service_config.data_directory))
-    logger.info(f"Using host data directory for container spawning: {host_data_dir}")
-    
-    container_manager = CellxgeneContainerManager(
-        data_directory=str(service_config.data_directory),
-        network_name="cellxgene_stack_cellxgene-network",
-        host_data_directory=host_data_dir
-    )
-    logger.info("Container manager initialized")
-    
-    # Initialize background scheduler for container cleanup
-    scheduler = BackgroundScheduler(daemon=True)
-    # Run cleanup every 5 minutes, remove containers inactive for 48 hours (172800 seconds)
-    scheduler.add_job(
-        func=lambda: container_manager.cleanup_inactive(max_inactive_seconds=172800),
-        trigger='interval',
-        minutes=5,
-        id='cleanup_inactive_containers',
-        name='Cleanup inactive CellXGene containers',
-        replace_existing=True
-    )
-    scheduler.start()
-    logger.info("Background scheduler started - checking for inactive containers every 5 minutes (48 hour timeout)")
-    
-    # Ensure scheduler shuts down when app terminates
-    atexit.register(lambda: scheduler.shutdown())
+    # Skip initialization in testing mode
+    if testing:
+        logger.info("Running in testing mode - skipping initialization")
+        # Create empty catalog for tests
+        from .services.catalog import DatasetCatalog
+        catalog = DatasetCatalog(datasets=[], logger=logger)
+        container_manager = None
+    else:
+        # Run startup validation
+        logger.info("Initializing application...")
+        service_config, catalog = validate_and_initialize(logger)
+        
+        # Initialize container manager for dynamic CellXGene instances
+        # Pass both container path and host path for volume mounting
+        import os
+        host_data_dir = os.environ.get('HOST_DATA_DIRECTORY', str(service_config.data_directory))
+        logger.info(f"Using host data directory for container spawning: {host_data_dir}")
+        
+        container_manager = CellxgeneContainerManager(
+            data_directory=str(service_config.data_directory),
+            network_name="cellxgene_stack_cellxgene-network",
+            host_data_directory=host_data_dir
+        )
+        logger.info("Container manager initialized")
+        
+        # Initialize background scheduler for container cleanup
+        scheduler = BackgroundScheduler(daemon=True)
+        # Run cleanup every 5 minutes, remove containers inactive for 48 hours (172800 seconds)
+        scheduler.add_job(
+            func=lambda: container_manager.cleanup_inactive(max_inactive_seconds=172800),
+            trigger='interval',
+            minutes=5,
+            id='cleanup_inactive_containers',
+            name='Cleanup inactive CellXGene containers',
+            replace_existing=True
+        )
+        scheduler.start()
+        logger.info("Background scheduler started - checking for inactive containers every 5 minutes (48 hour timeout)")
+        
+        # Ensure scheduler shuts down when app terminates
+        atexit.register(lambda: scheduler.shutdown())
     
     # Store configuration in app
     app.config['SERVICE_CONFIG'] = service_config

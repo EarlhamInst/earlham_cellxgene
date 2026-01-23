@@ -77,9 +77,7 @@ def sample_datasets(tmp_path):
 @pytest.fixture
 def mock_catalog(app, sample_datasets):
     """Mock dataset catalog."""
-    catalog = DatasetCatalog()
-    for ds in sample_datasets:
-        catalog.add_dataset(ds)
+    catalog = DatasetCatalog(datasets=sample_datasets)
     app.config['CATALOG'] = catalog
     return catalog
 
