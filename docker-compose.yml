@@ -12,6 +12,7 @@ services:
       - DEBUG=${LANDING_PAGE_DEBUG:-false}
       - LOG_LEVEL=${LANDING_PAGE_LOG_LEVEL:-INFO}
       - HOST_DATA_DIRECTORY=${HOST_DATA_DIRECTORY:-.}/data/datasets  # Host path for spawning containers
+      - CELLXGENE_MEMORY_PER_WORKER_GB=${CELLXGENE_MEMORY_PER_WORKER_GB:-4}
     volumes:
       - ${HOST_DATA_DIRECTORY:-.}/data/datasets:/data/datasets:ro
       - ${HOST_LOG_DIRECTORY:-.}/data/logs:/data/logs:ro
