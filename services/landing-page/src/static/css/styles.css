@@ -243,6 +243,9 @@ body {
     /* Prevent expansion from long text */
     overflow: hidden;
     min-width: 0;
+    /* Use flexbox to push button to bottom */
+    display: flex;
+    flex-direction: column;
 }
 
 .dataset-card:hover {
@@ -274,6 +277,7 @@ body {
     gap: 0.5rem;
     font-size: 0.85rem;
     margin-bottom: 1rem;
+    flex-grow: 1;
 }
 
 .metadata-item {
