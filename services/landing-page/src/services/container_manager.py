@@ -12,6 +12,7 @@ Constitutional Alignment:
 import docker
 import logging
 import time
+import os
 from datetime import datetime
 from typing import Dict, Tuple, Optional
 from pathlib import Path
@@ -26,6 +27,7 @@ class CellxgeneContainerManager:
         data_directory: str,
         network_name: str = "cellxgene_stack_cellxgene-network",
         host_data_directory: str = None,
+        memory_gb: int = None,
     ):
         """
         Initialize container manager.
@@ -34,6 +36,7 @@ class CellxgeneContainerManager:
             data_directory: Path to datasets directory (inside container)
             network_name: Docker network name for containers
             host_data_directory: Path to datasets on Docker host (for volume mounting)
+            memory_gb: Memory limit in GB for each spawned container (default: 4GB)
         """
         self.logger = logging.getLogger(__name__)
         self.client = docker.from_env()
@@ -42,6 +45,10 @@ class CellxgeneContainerManager:
             Path(host_data_directory) if host_data_directory else self.data_directory
         )
         self.network_name = network_name
+        # Get memory limit from parameter or environment variable (default 4GB)
+        self.memory_gb = memory_gb or int(
+            os.environ.get("CELLXGENE_MEMORY_PER_WORKER_GB", "4")
+        )
         self.active_containers: Dict[
             str, Tuple[object, int, datetime]
         ] = {}  # {dataset_id: (container, port, last_accessed)}
@@ -49,6 +56,7 @@ class CellxgeneContainerManager:
 
         self.logger.info(f"Container manager initialized for network: {network_name}")
         self.logger.info(f"Host data directory: {self.host_data_directory}")
+        self.logger.info(f"Memory limit per container: {self.memory_gb}GB")
 
     def _find_free_port(self) -> int:
         """Find an available port in the configured range."""
@@ -171,7 +179,7 @@ class CellxgeneContainerManager:
 
         try:
             # Launch container with memory limit to prevent OOM issues
-            # Default 4GB should handle most datasets; very large datasets may need more
+            mem_limit = f"{self.memory_gb}g"
             container = self.client.containers.run(
                 "cellxgene_stack-cellxgene:latest",
                 detach=True,
@@ -188,8 +196,8 @@ class CellxgeneContainerManager:
                     }
                 },
                 network=self.network_name,
-                mem_limit="4g",  # Limit memory to prevent OOM crashes
-                memswap_limit="4g",  # Disable swap for consistent performance
+                mem_limit=mem_limit,
+                memswap_limit=mem_limit,
                 # Don't auto-remove so we can detect OOM kills
                 remove=False,
             )

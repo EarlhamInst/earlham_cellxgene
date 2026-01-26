@@ -100,10 +100,12 @@ def create_app(config=None, testing=False):
             f"Using host data directory for container spawning: {host_data_dir}"
         )
 
+        memory_gb = int(os.environ.get("CELLXGENE_MEMORY_PER_WORKER_GB", "4"))
         container_manager = CellxgeneContainerManager(
             data_directory=str(service_config.data_directory),
             network_name="cellxgene_stack_cellxgene-network",
             host_data_directory=host_data_dir,
+            memory_gb=memory_gb,
         )
         logger.info("Container manager initialized")
 
