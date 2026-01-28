@@ -85,7 +85,7 @@ exec cellxgene launch "$TARGET_H5AD" \
   --host 0.0.0.0 \
   --port 5005 \
   --disable-annotations \
-  --disable-diffexp \
+  --disable-gene-sets-save \
   --backed
 
 
