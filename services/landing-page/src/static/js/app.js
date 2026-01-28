@@ -147,12 +147,26 @@ function displayDatasets(datasets) {
     noResults.style.display = 'none';
     grid.innerHTML = datasets.map(dataset => createDatasetCard(dataset)).join('');
     
-    // Add click handlers for launch buttons
+    // Add click handlers to entire cards
     datasets.forEach(dataset => {
+        const card = document.querySelector(`[data-id="${dataset.id}"]`);
         const launchButton = document.getElementById(`launch-${dataset.id}`);
         
+        if (card) {
+            card.addEventListener('click', (e) => {
+                // Prevent double-triggering if button is clicked
+                if (e.target === launchButton || launchButton.contains(e.target)) {
+                    return;
+                }
+                launchDataset(dataset.id);
+            });
+        }
+        
         if (launchButton) {
-            launchButton.addEventListener('click', () => launchDataset(dataset.id));
+            launchButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                launchDataset(dataset.id);
+            });
         }
     });
 }
@@ -227,7 +241,7 @@ async function launchDataset(datasetId, retryCount = 0) {
     try {
         // Disable button and show spinner
         button.disabled = true;
-        button.innerHTML = '<div class="spinner"></div>';
+        button.innerHTML = '<span class="spinner"></span>';
         
         console.log(`Launching dataset: ${datasetId}, attempt ${retryCount + 1}`);
         

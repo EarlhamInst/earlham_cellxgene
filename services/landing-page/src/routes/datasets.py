@@ -204,9 +204,8 @@ def launch_dataset(dataset_id: str):
 
         # Construct browser-accessible URL (proxied through nginx)
         # Each dataset gets its own route: /cellxgene-{dataset_id}/
-        host = request.host.split(":")[0]  # Remove port if present
-        scheme = request.scheme
-        cellxgene_url = f"{scheme}://{host}/cellxgene-{dataset_id}/"
+        # Use relative URL to avoid credential-like patterns in hostname
+        cellxgene_url = f"/cellxgene-{dataset_id}/"
 
         logger.info(
             f"Dataset {dataset_id} launched on port {port}, accessible at {cellxgene_url}"
