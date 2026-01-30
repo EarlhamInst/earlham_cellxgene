@@ -164,10 +164,10 @@ class DatasetCatalog:
 
     def get_statistics(self) -> Dict[str, Any]:
         """
-        Get catalog statistics.
+        Get catalog statistics including dynamic metadata fields.
 
         Returns:
-            Dictionary with statistics
+            Dictionary with statistics and available metadata fields
         """
         total_cells = sum(ds.cell_count or 0 for ds in self.datasets)
         total_size = sum(ds.file_size_bytes or 0 for ds in self.datasets)
@@ -175,6 +175,21 @@ class DatasetCatalog:
         organisms = set(ds.organism for ds in self.datasets)
         tissues = set(ds.tissue for ds in self.datasets)
         assays = set(ds.assay for ds in self.datasets)
+        
+        # Collect all additional metadata fields across all datasets
+        all_metadata_fields = {}
+        for ds in self.datasets:
+            if ds.additional_metadata:
+                for field, values in ds.additional_metadata.items():
+                    if field not in all_metadata_fields:
+                        all_metadata_fields[field] = set()
+                    all_metadata_fields[field].update(values)
+        
+        # Convert to sorted lists
+        metadata_fields = {
+            field: sorted(values) 
+            for field, values in all_metadata_fields.items()
+        }
 
         return {
             "total_datasets": len(self.datasets),
@@ -186,6 +201,7 @@ class DatasetCatalog:
             "organisms": sorted(organisms),
             "tissues": sorted(tissues),
             "assays": sorted(assays),
+            "metadata_fields": metadata_fields,  # Dynamic metadata fields
             "last_updated": self.last_updated.isoformat() + "Z",
         }
 

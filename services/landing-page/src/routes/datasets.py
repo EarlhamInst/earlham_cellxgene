@@ -30,6 +30,7 @@ def list_datasets():
         - search: Search in name and description
         - sort: Sort by (name, cell_count, file_size)
         - order: Sort order (asc, desc)
+        - metadata_<field>: Filter by additional metadata field (e.g., metadata_cell_type=T cell)
 
     Returns:
         JSON response with dataset list
@@ -44,6 +45,13 @@ def list_datasets():
         search_query = request.args.get("search")
         sort_by = request.args.get("sort", "name")
         order = request.args.get("order", "asc")
+        
+        # Extract metadata filters (params starting with "metadata_")
+        metadata_filters = {}
+        for param_name, param_value in request.args.items():
+            if param_name.startswith("metadata_"):
+                field_name = param_name[9:]  # Remove "metadata_" prefix
+                metadata_filters[field_name] = param_value
 
         # Start with all datasets
         datasets = catalog.get_all()
@@ -59,6 +67,15 @@ def list_datasets():
 
         if assay:
             datasets = [ds for ds in datasets if ds.assay.lower() == assay.lower()]
+        
+        # Apply metadata filters
+        for field, value in metadata_filters.items():
+            datasets = [
+                ds for ds in datasets
+                if ds.additional_metadata
+                and field in ds.additional_metadata
+                and value in ds.additional_metadata[field]
+            ]
 
         if search_query:
             search_lower = search_query.lower()
@@ -89,18 +106,22 @@ def list_datasets():
 
         # Convert to dictionaries
         dataset_list = [ds.to_dict() for ds in datasets]
+        
+        # Add metadata filters to response
+        active_filters = {
+            "organism": organism,
+            "tissue": tissue,
+            "assay": assay,
+            "search": search_query,
+        }
+        active_filters.update(metadata_filters)
 
         return (
             jsonify(
                 {
                     "datasets": dataset_list,
                     "count": len(dataset_list),
-                    "filters": {
-                        "organism": organism,
-                        "tissue": tissue,
-                        "assay": assay,
-                        "search": search_query,
-                    },
+                    "filters": active_filters,
                 }
             ),
             200,

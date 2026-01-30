@@ -53,11 +53,15 @@ class Dataset:
     file_size_bytes: Optional[int] = None
     is_valid: bool = True
     validation_errors: list = None
+    additional_metadata: Optional[Dict[str, Any]] = None  # For storing extra obs metadata
 
     def __post_init__(self):
         """Initialize after dataclass creation."""
         if self.validation_errors is None:
             self.validation_errors = []
+        
+        if self.additional_metadata is None:
+            self.additional_metadata = {}
 
         # Ensure filepath is a Path object
         if not isinstance(self.filepath, Path):
@@ -97,6 +101,7 @@ class Dataset:
             publication=metadata.get("publication"),
             is_valid=True,
             validation_errors=[],
+            additional_metadata=metadata.get("additional_metadata", {}),
         )
 
     def to_dict(self, include_filepath: bool = False) -> Dict[str, Any]:

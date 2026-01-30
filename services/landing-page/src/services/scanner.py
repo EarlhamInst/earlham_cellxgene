@@ -255,6 +255,48 @@ class DatasetScanner:
         metadata["cell_count"] = adata.n_obs
         metadata["gene_count"] = adata.n_vars
 
+        # Extract additional metadata from obs columns
+        # Only store study-level metadata (low cardinality fields that describe the study/dataset)
+        # Skip cell-level annotations like cell types, clusters, etc.
+        additional_metadata = {}
+        
+        # Define study-level metadata fields to extract (these typically have very few unique values)
+        study_level_fields = {
+            'sex', 'gender', 'disease', 'development_stage', 'ethnicity', 
+            'donor_id', 'batch', 'sample_id', 'technology', 'method',
+            'treatment', 'time_point', 'condition', 'sequencing_platform',
+            'library_preparation', 'species'
+        }
+        
+        if adata.obs is not None:
+            for col in adata.obs.columns:
+                col_lower = col.lower()
+                
+                # Skip columns we already extracted as main metadata
+                if col in ['organism', 'tissue', 'assay']:
+                    continue
+                
+                # Check if this looks like a study-level field
+                is_study_level = any(field in col_lower for field in study_level_fields)
+                
+                if is_study_level:
+                    try:
+                        # Get unique values for this column
+                        unique_values = adata.obs[col].dropna().unique()
+                        n_unique = len(unique_values)
+                        
+                        # Only store if there are very few unique values (study-level, not cell-level)
+                        # Study-level metadata typically has 1-10 unique values
+                        if 0 < n_unique <= 10:
+                            # Convert to list of strings
+                            unique_list = [str(v) for v in unique_values]
+                            additional_metadata[col] = sorted(unique_list)
+                    except Exception as e:
+                        # Skip columns that can't be processed
+                        continue
+        
+        metadata["additional_metadata"] = additional_metadata
+
         # Extract optional fields from .uns if available
         optional_fields = [
             "doi",

@@ -13,6 +13,7 @@ const API_BASE = '/api';
 let allDatasets = [];
 let filteredDatasets = [];
 let statistics = {};
+let metadataFields = {}; // Dynamic metadata fields from statistics
 
 /**
  * Initialize application on page load
@@ -32,11 +33,8 @@ document.addEventListener('DOMContentLoaded', async () => {
  * Setup all event listeners
  */
 function setupEventListeners() {
-    // Search
-    document.getElementById('search-button').addEventListener('click', handleSearch);
-    document.getElementById('search-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleSearch();
-    });
+    // Search on input change
+    document.getElementById('search-input').addEventListener('input', applyFilters);
     
     // Filters
     document.getElementById('filter-organism').addEventListener('change', applyFilters);
@@ -77,6 +75,10 @@ function displayStatistics(stats) {
     populateFilterDropdown('filter-organism', stats.organisms || []);
     populateFilterDropdown('filter-tissue', stats.tissues || []);
     populateFilterDropdown('filter-assay', stats.assays || []);
+    
+    // Store and create dynamic metadata filters
+    metadataFields = stats.metadata_fields || {};
+    createDynamicFilters(metadataFields);
 }
 
 /**
@@ -100,6 +102,63 @@ function populateFilterDropdown(elementId, options) {
     if (currentValue && options.includes(currentValue)) {
         select.value = currentValue;
     }
+}
+
+/**
+ * Create dynamic metadata filter dropdowns
+ */
+function createDynamicFilters(fields) {
+    const container = document.getElementById('dynamic-filters');
+    container.innerHTML = '';
+    
+    Object.keys(fields).forEach(fieldName => {
+        const values = fields[fieldName];
+        if (values && values.length > 0) {
+            const filterGroup = document.createElement('div');
+            filterGroup.className = 'filter-group';
+            
+            const label = document.createElement('label');
+            label.htmlFor = `filter-metadata-${fieldName}`;
+            label.textContent = formatFieldName(fieldName);
+            
+            const select = document.createElement('select');
+            select.id = `filter-metadata-${fieldName}`;
+            select.className = 'metadata-filter';
+            select.setAttribute('data-field', fieldName);
+            select.setAttribute('aria-label', `Filter by ${fieldName}`);
+            
+            // Add "All" option
+            const allOption = document.createElement('option');
+            allOption.value = '';
+            allOption.textContent = 'All';
+            select.appendChild(allOption);
+            
+            // Add value options
+            values.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.appendChild(option);
+            });
+            
+            // Add change listener
+            select.addEventListener('change', applyFilters);
+            
+            filterGroup.appendChild(label);
+            filterGroup.appendChild(select);
+            container.appendChild(filterGroup);
+        }
+    });
+}
+
+/**
+ * Format field name for display
+ */
+function formatFieldName(fieldName) {
+    return fieldName
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 }
 
 /**
@@ -192,6 +251,32 @@ function createDatasetCard(dataset) {
     
     const loadTime = estimateLoadingTime(dataset.file_size_human);
     
+    // Build additional metadata section if available
+    let additionalMetadataHtml = '';
+    if (dataset.additional_metadata && Object.keys(dataset.additional_metadata).length > 0) {
+        const metadataItems = Object.entries(dataset.additional_metadata)
+            .map(([key, values]) => {
+                const displayValues = Array.isArray(values) ? values.join(', ') : values;
+                return `
+                    <div class="metadata-item">
+                        <span class="metadata-label">${formatFieldName(key)}</span>
+                        <span class="metadata-value" title="${escapeHtml(displayValues)}">${escapeHtml(displayValues)}</span>
+                    </div>
+                `;
+            }).join('');
+        
+        additionalMetadataHtml = `
+            <div class="additional-metadata-section">
+                <button class="metadata-toggle" onclick="event.stopPropagation(); toggleMetadata('${dataset.id}')">
+                    <span class="toggle-icon">▶</span> Additional Metadata
+                </button>
+                <div class="additional-metadata" id="metadata-${dataset.id}" style="display: none;">
+                    ${metadataItems}
+                </div>
+            </div>
+        `;
+    }
+    
     return `
         <div class="dataset-card" data-id="${dataset.id}">
             <h3>${escapeHtml(dataset.display_name)}</h3>
@@ -223,6 +308,8 @@ function createDatasetCard(dataset) {
                     <span class="metadata-value">${dataset.file_size_human || 'N/A'}</span>
                 </div>
             </div>
+            
+            ${additionalMetadataHtml}
             
             <button id="launch-${dataset.id}" class="launch-button">
                 🚀 Launch in CellXGene
@@ -383,16 +470,6 @@ async function waitForContainerReady(datasetId, maxAttempts = 180) {
 }
 
 /**
- * Handle search
- */
-function handleSearch() {
-    const query = document.getElementById('search-input').value;
-    if (query) {
-        applyFilters();
-    }
-}
-
-/**
  * Apply all filters and sorting
  */
 function applyFilters() {
@@ -401,6 +478,16 @@ function applyFilters() {
     const tissue = document.getElementById('filter-tissue').value;
     const assay = document.getElementById('filter-assay').value;
     const sortBy = document.getElementById('sort-by').value;
+    
+    // Get dynamic metadata filters
+    const metadataFilters = {};
+    document.querySelectorAll('.metadata-filter').forEach(select => {
+        const fieldName = select.getAttribute('data-field');
+        const value = select.value;
+        if (value) {
+            metadataFilters[fieldName] = value;
+        }
+    });
     
     // Filter datasets
     filteredDatasets = allDatasets.filter(dataset => {
@@ -420,6 +507,15 @@ function applyFilters() {
         
         // Assay filter
         if (assay && dataset.assay !== assay) return false;
+        
+        // Metadata filters
+        for (const [fieldName, value] of Object.entries(metadataFilters)) {
+            if (dataset.additional_metadata && 
+                dataset.additional_metadata[fieldName] &&
+                !dataset.additional_metadata[fieldName].includes(value)) {
+                return false;
+            }
+        }
         
         return true;
     });
@@ -463,8 +559,30 @@ function clearFilters() {
     document.getElementById('filter-assay').value = '';
     document.getElementById('sort-by').value = 'name';
     
+    // Clear dynamic metadata filters
+    document.querySelectorAll('.metadata-filter').forEach(select => {
+        select.value = '';
+    });
+    
     filteredDatasets = allDatasets;
     displayDatasets(filteredDatasets);
+}
+
+/**
+ * Toggle metadata section visibility
+ */
+function toggleMetadata(datasetId) {
+    const metadataDiv = document.getElementById(`metadata-${datasetId}`);
+    const button = event.target.closest('.metadata-toggle');
+    const icon = button.querySelector('.toggle-icon');
+    
+    if (metadataDiv.style.display === 'none') {
+        metadataDiv.style.display = 'grid';
+        icon.textContent = '\u25bc'; // Down arrow
+    } else {
+        metadataDiv.style.display = 'none';
+        icon.textContent = '\u25b6'; // Right arrow
+    }
 }
 
 /**

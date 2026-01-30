@@ -16,87 +16,105 @@
     </header>
 
     <main class="main">
-        <div class="container">
-            <!-- Filter and Search Section -->
-            <section class="filters">
-                <div class="search-box">
+        <div class="container-with-sidebar">
+            <!-- Left Sidebar Filters -->
+            <aside class="filter-sidebar">
+                <h3 class="sidebar-title">Filters</h3>
+                
+                <div class="filter-group">
+                    <label for="search-input">Search</label>
                     <input 
                         type="text" 
                         id="search-input" 
-                        placeholder="Search datasets by name or description..."
+                        placeholder="Search datasets..."
                         aria-label="Search datasets"
                     >
-                    <button id="search-button" aria-label="Search">🔍 Search</button>
                 </div>
 
-                <div class="filter-row">
+                <div class="filter-group">
+                    <label for="filter-organism">Organism</label>
                     <select id="filter-organism" aria-label="Filter by organism">
-                        <option value="">All Organisms</option>
+                        <option value="">All</option>
                     </select>
+                </div>
 
+                <div class="filter-group">
+                    <label for="filter-tissue">Tissue</label>
                     <select id="filter-tissue" aria-label="Filter by tissue">
-                        <option value="">All Tissues</option>
+                        <option value="">All</option>
                     </select>
+                </div>
 
+                <div class="filter-group">
+                    <label for="filter-assay">Assay</label>
                     <select id="filter-assay" aria-label="Filter by assay">
-                        <option value="">All Assays</option>
+                        <option value="">All</option>
                     </select>
+                </div>
+                
+                <!-- Dynamic metadata filters will be added here -->
+                <div id="dynamic-filters"></div>
 
+                <div class="filter-group">
+                    <label for="sort-by">Sort By</label>
                     <select id="sort-by" aria-label="Sort by">
-                        <option value="name">Sort by Name</option>
-                        <option value="cell_count">Sort by Cell Count</option>
-                        <option value="file_size">Sort by File Size</option>
+                        <option value="name">Name</option>
+                        <option value="cell_count">Cell Count</option>
+                        <option value="file_size">File Size</option>
                     </select>
-
-                    <button id="clear-filters" aria-label="Clear all filters">Clear Filters</button>
                 </div>
-            </section>
 
-            <!-- Statistics Section -->
-            <section class="statistics" id="statistics">
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-datasets">-</div>
-                    <div class="stat-label">Total Datasets</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-cells">-</div>
-                    <div class="stat-label">Total Cells</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-organisms">-</div>
-                    <div class="stat-label">Organisms</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-tissues">-</div>
-                    <div class="stat-label">Tissues</div>
-                </div>
-            </section>
+                <button id="clear-filters" class="clear-filters-btn">Clear All Filters</button>
+            </aside>
 
-            <!-- Loading Indicator -->
-            <div id="loading" class="loading" style="display: none;">
-                <div class="spinner"></div>
-                <p>Loading datasets...</p>
-            </div>
+            <!-- Main Content Area -->
+            <div class="main-content">
+                <!-- Statistics Section -->
+                <section class="statistics" id="statistics">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-datasets">-</div>
+                        <div class="stat-label">Total Datasets</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-cells">-</div>
+                        <div class="stat-label">Total Cells</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-organisms">-</div>
+                        <div class="stat-label">Organisms</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-tissues">-</div>
+                        <div class="stat-label">Tissues</div>
+                    </div>
+                </section>
 
-            <!-- Error Message -->
-            <div id="error-message" class="error-message" style="display: none;" role="alert">
-                <span class="error-icon">⚠️</span>
-                <div class="error-content">
-                    <p class="error-title" id="error-title">Error</p>
-                    <p class="error-text" id="error-text"></p>
-                    <p class="error-hint" id="error-hint"></p>
+                <!-- Loading Indicator -->
+                <div id="loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Loading datasets...</p>
                 </div>
-            </div>
 
-            <!-- Dataset Grid -->
-            <section class="dataset-grid" id="dataset-grid">
-                <!-- Dataset cards will be dynamically inserted here -->
-            </section>
+                <!-- Error Message -->
+                <div id="error-message" class="error-message" style="display: none;" role="alert">
+                    <span class="error-icon">⚠️</span>
+                    <div class="error-content">
+                        <p class="error-title" id="error-title">Error</p>
+                        <p class="error-text" id="error-text"></p>
+                        <p class="error-hint" id="error-hint"></p>
+                    </div>
+                </div>
 
-            <!-- No Results Message -->
-            <div id="no-results" class="no-results" style="display: none;">
-                <p>No datasets found matching your criteria.</p>
-                <button id="reset-filters">Reset Filters</button>
+                <!-- Dataset Grid -->
+                <section class="dataset-grid" id="dataset-grid">
+                    <!-- Dataset cards will be dynamically inserted here -->
+                </section>
+
+                <!-- No Results Message -->
+                <div id="no-results" class="no-results" style="display: none;">
+                    <p>No datasets found matching your criteria.</p>
+                    <button id="reset-filters">Reset Filters</button>
+                </div>
             </div>
         </div>
     </main>
