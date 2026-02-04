@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CellXGene Explorer - Access Private Dataset">
+    <title>Private Dataset Access | CellXGene Explorer</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        .private-access-container {
+            max-width: 500px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .access-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .access-card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .access-card-header h2 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.5rem;
+        }
+        
+        .access-card-header p {
+            margin: 0;
+            opacity: 0.9;
+        }
+        
+        .access-card-body {
+            padding: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        .form-group input.code-input {
+            text-align: center;
+            font-size: 1.5rem;
+            letter-spacing: 0.5rem;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .form-group .help-text {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.5rem;
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .submit-btn:hover {
+            background: var(--hover-color);
+        }
+        
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+        
+        .message.error {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #b91c1c;
+        }
+        
+        .message.success {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            color: #047857;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 1.5rem;
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        .private-datasets-list {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        .private-dataset-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: box-shadow 0.3s;
+        }
+        
+        .private-dataset-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .private-dataset-card h4 {
+            margin: 0 0 0.5rem 0;
+            color: var(--text-color);
+        }
+        
+        .private-dataset-card p {
+            margin: 0 0 1rem 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .private-dataset-card .launch-btn {
+            padding: 0.5rem 1rem;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        .private-dataset-card .launch-btn:hover {
+            background: var(--hover-color);
+        }
+        
+        .info-box {
+            background: #f0f7ff;
+            border: 1px solid #bcd4f0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            color: #1a365d;
+        }
+        
+        .info-box strong {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="title">🔒 Private Dataset Access</h1>
+            <p class="subtitle">Earlham Institute | CellXGene Explorer</p>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="private-access-container">
+            <!-- Login Form -->
+            <div id="login-form" class="access-card">
+                <div class="access-card-header">
+                    <h2>Access Private Dataset</h2>
+                    <p>Enter the code from your email</p>
+                </div>
+                <div class="access-card-body">
+                    <div class="info-box">
+                        <strong>📧 Check your email</strong>
+                        If you have been granted access to a private dataset, you should have received 
+                        an email with a 6-digit access code. Enter it below to view your dataset.
+                    </div>
+                    
+                    <div id="login-message" class="message"></div>
+                    
+                    <form id="login-access-form">
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input type="email" id="email" name="email" required 
+                                   placeholder="reviewer@university.edu">
+                            <p class="help-text">The email address where you received the access code</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="access-code">Access Code</label>
+                            <input type="text" id="access-code" name="code" required 
+                                   class="code-input" maxlength="6" pattern="[0-9]{6}"
+                                   placeholder="000000" autocomplete="off">
+                            <p class="help-text">The 6-digit code from your email</p>
+                        </div>
+                        
+                        <button type="submit" class="submit-btn" id="login-btn">
+                            Access Dataset
+                        </button>
+                    </form>
+                    
+                    <a href="/" class="back-link">← Back to public datasets</a>
+                </div>
+            </div>
+            
+            <!-- Verified - Show Datasets -->
+            <div id="verified-container" class="access-card" style="display: none;">
+                <div class="access-card-header">
+                    <h2>Access Verified ✓</h2>
+                    <p id="verified-email-display">Logged in as: </p>
+                </div>
+                <div class="access-card-body">
+                    <h3>Your Private Datasets</h3>
+                    <div id="private-datasets-list" class="private-datasets-list">
+                        <!-- Datasets will be loaded here -->
+                    </div>
+                    
+                    <button class="back-link" onclick="logout()" style="border: none; background: none; cursor: pointer; margin-top: 2rem;">
+                        🚪 Logout
+                    </button>
+                    
+                    <a href="/" class="back-link" style="margin-left: 1rem;">← Back to public datasets</a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>2026 Earlham Institute | CellXGene Explorer | MIT Licensed</p>
+        </div>
+    </footer>
+
+    <script>
+        const API_BASE = '/api/private';
+        
+        // Check if already authenticated on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkSession();
+        });
+        
+        async function checkSession() {
+            try {
+                const response = await fetch(`${API_BASE}/session`);
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    showVerifiedState(data.email);
+                }
+            } catch (error) {
+                console.error('Error checking session:', error);
+            }
+        }
+        
+        // Login form - email + code verification
+        document.getElementById('login-access-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const code = document.getElementById('access-code').value;
+            const btn = document.getElementById('login-btn');
+            const message = document.getElementById('login-message');
+            
+            btn.disabled = true;
+            btn.textContent = 'Verifying...';
+            message.style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showVerifiedState(email);
+                } else {
+                    message.className = 'message error';
+                    message.textContent = data.message || data.error || 'Invalid email or code. Please check and try again.';
+                    message.style.display = 'block';
+                }
+            } catch (error) {
+                message.className = 'message error';
+                message.textContent = 'Network error. Please try again.';
+                message.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Access Dataset';
+            }
+        });
+        
+        function showLoginForm() {
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('verified-container').style.display = 'none';
+        }
+        
+        async function showVerifiedState(email) {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('verified-container').style.display = 'block';
+            
+            document.getElementById('verified-email-display').textContent = `Logged in as: ${email}`;
+            
+            // Load private datasets
+            await loadPrivateDatasets();
+        }
+        
+        async function loadPrivateDatasets() {
+            const container = document.getElementById('private-datasets-list');
+            container.innerHTML = '<p>Loading datasets...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/datasets`);
+                const data = await response.json();
+                
+                if (data.datasets && data.datasets.length > 0) {
+                    container.innerHTML = data.datasets.map(ds => `
+                        <div class="private-dataset-card">
+                            <h4>${escapeHtml(ds.display_name)}</h4>
+                            <p>${escapeHtml(ds.description || 'No description')}</p>
+                            <p><strong>Cells:</strong> ${formatNumber(ds.cell_count)} | 
+                               <strong>Genes:</strong> ${formatNumber(ds.gene_count)}</p>
+                            <button class="launch-btn" onclick="launchPrivateDataset('${ds.id}')">
+                                🚀 Launch in CellXGene
+                            </button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p>No private datasets available for your account.</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p class="error">Failed to load datasets.</p>';
+            }
+        }
+        
+        async function launchPrivateDataset(datasetId) {
+            try {
+                const response = await fetch(`${API_BASE}/datasets/${datasetId}/launch`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.cellxgene_url) {
+                    window.open(data.cellxgene_url, '_blank');
+                } else {
+                    alert(data.error || 'Failed to launch dataset');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+        
+        async function logout() {
+            try {
+                await fetch(`${API_BASE}/logout`, { method: 'POST' });
+            } catch (error) {
+                // Ignore logout errors
+            }
+            showLoginForm();
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatNumber(num) {
+            if (num === null || num === undefined) return 'N/A';
+            return num.toLocaleString();
+        }
+    </script>
+</body>
+</html>

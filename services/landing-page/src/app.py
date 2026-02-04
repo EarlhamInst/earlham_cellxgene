@@ -9,19 +9,24 @@ Constitutional Alignment:
 - Principle III (Code Clarity): Well-documented initialization
 """
 
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, render_template, send_from_directory, Response, request
 from flask_cors import CORS
+import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 import atexit
+import os
 from pathlib import Path
 
 from .config import load_config
 from .logging_config import setup_logging
 from .routes import health_bp, datasets_bp
+from .routes.private import private_bp
 from .startup import validate_and_initialize
 from .errors import format_error_response
 from .services.container_manager import CellxgeneContainerManager
+from .models.access_grant import AccessGrantStore
+from .services.email_service import EmailService, EmailConfig, MockEmailService
 
 
 def create_app(config=None, testing=False):
@@ -136,6 +141,67 @@ def create_app(config=None, testing=False):
     app.config["CONTAINER_MANAGER"] = container_manager
     app.config["CELLXGENE_URL"] = service_config.cellxgene_url
     app.config["DEBUG"] = service_config.debug
+    
+    # Set secret key for sessions
+    import secrets
+    app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+    
+    # Initialize private access components
+    if not testing:
+        # Access grant store
+        grant_store = AccessGrantStore(service_config.grants_storage_path)
+        app.config["GRANT_STORE"] = grant_store
+        logger.info(f"Access grant store initialized: {service_config.grants_storage_path}")
+        
+        # Admin token for grant management
+        app.config["ADMIN_TOKEN"] = service_config.admin_token
+        
+        # Private catalog (if configured)
+        if service_config.private_data_directory and service_config.private_data_directory.exists():
+            from .services.scanner import DatasetScanner
+            from .services.catalog import DatasetCatalog
+            
+            private_scanner = DatasetScanner(service_config.private_data_directory, logger)
+            private_datasets, _ = private_scanner.scan(fail_on_invalid=False)
+            private_catalog = DatasetCatalog(private_datasets, logger)
+            app.config["PRIVATE_CATALOG"] = private_catalog
+            logger.info(f"Private catalog initialized with {len(private_datasets)} datasets")
+            
+            # Create container manager for private datasets
+            host_private_dir = os.environ.get(
+                "HOST_PRIVATE_DATA_DIRECTORY", str(service_config.private_data_directory)
+            )
+            private_container_manager = CellxgeneContainerManager(
+                data_directory=str(service_config.private_data_directory),
+                network_name="cellxgene_stack_cellxgene-network",
+                host_data_directory=host_private_dir,
+                memory_gb=memory_gb,
+            )
+            app.config["PRIVATE_CONTAINER_MANAGER"] = private_container_manager
+            logger.info(f"Private container manager initialized for: {host_private_dir}")
+        else:
+            app.config["PRIVATE_CATALOG"] = None
+            app.config["PRIVATE_CONTAINER_MANAGER"] = None
+            if service_config.private_data_directory:
+                logger.warning(f"Private data directory not found: {service_config.private_data_directory}")
+        
+        # Email service
+        if service_config.smtp_host:
+            email_config = EmailConfig(
+                smtp_host=service_config.smtp_host,
+                smtp_port=service_config.smtp_port,
+                smtp_username=service_config.smtp_username or "",
+                smtp_password=service_config.smtp_password or "",
+                from_email=service_config.smtp_from_email or "noreply@earlham.ac.uk",
+                base_url=service_config.base_url,
+            )
+            email_service = EmailService(email_config, logger)
+            app.config["EMAIL_SERVICE"] = email_service
+            logger.info("Email service initialized")
+        else:
+            # Use mock service for development
+            app.config["EMAIL_SERVICE"] = MockEmailService(logger)
+            logger.warning("Using mock email service (SMTP not configured)")
 
     # Enable CORS
     CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -143,18 +209,81 @@ def create_app(config=None, testing=False):
     # Register blueprints
     app.register_blueprint(health_bp, url_prefix="/api")
     app.register_blueprint(datasets_bp, url_prefix="/api")
+    app.register_blueprint(private_bp, url_prefix="/api/private")
 
     # Landing page route
     @app.route("/")
     def index():
         """Serve the landing page."""
         return render_template("index.html")
+    
+    # Private access page route
+    @app.route("/private")
+    def private_access():
+        """Serve the private dataset access page."""
+        return render_template("private.html")
+    
+    # Admin page route
+    @app.route("/admin")
+    def admin_panel():
+        """Serve the admin panel page."""
+        return render_template("admin.html")
 
     # Static file serving
     @app.route("/static/<path:filename>")
     def serve_static(filename):
         """Serve static files."""
         return send_from_directory(app.static_folder, filename)
+
+    # CellXGene proxy route - proxies to dynamically spawned containers
+    @app.route("/cellxgene-<dataset_id>/", defaults={"path": ""})
+    @app.route("/cellxgene-<dataset_id>/<path:path>")
+    def proxy_cellxgene(dataset_id, path):
+        """Proxy requests to CellXGene containers."""
+        # Find the container port
+        container_manager = app.config.get("CONTAINER_MANAGER")
+        private_container_manager = app.config.get("PRIVATE_CONTAINER_MANAGER")
+        
+        port = None
+        
+        # Check public container manager
+        if container_manager:
+            port = container_manager.get_container_port(dataset_id)
+        
+        # Check private container manager if not found
+        if port is None and private_container_manager:
+            port = private_container_manager.get_container_port(dataset_id)
+        
+        if port is None:
+            return {"error": "Container not running", "dataset_id": dataset_id}, 503
+        
+        # Proxy the request - use container name instead of localhost
+        # Containers are named cellxgene-{dataset_id} and expose port 5005 internally
+        container_name = f"cellxgene-{dataset_id}"
+        target_url = f"http://{container_name}:5005/{path}"
+        if request.query_string:
+            target_url += f"?{request.query_string.decode()}"
+        
+        try:
+            resp = requests.request(
+                method=request.method,
+                url=target_url,
+                headers={key: value for (key, value) in request.headers if key != 'Host'},
+                data=request.get_data(),
+                cookies=request.cookies,
+                allow_redirects=False,
+                timeout=30,
+            )
+            
+            # Build response
+            excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+            headers = [(name, value) for (name, value) in resp.raw.headers.items()
+                       if name.lower() not in excluded_headers]
+            
+            return Response(resp.content, resp.status_code, headers)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Proxy error for {dataset_id}: {e}")
+            return {"error": "Container unavailable"}, 503
 
     # Error handlers
     @app.errorhandler(404)

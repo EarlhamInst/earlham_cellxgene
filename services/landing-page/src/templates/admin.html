@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CellXGene Explorer - Admin Panel">
+    <title>Admin Panel | CellXGene Explorer</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        .admin-container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .admin-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+        
+        .admin-card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 1.5rem;
+        }
+        
+        .admin-card-header h2 {
+            margin: 0;
+        }
+        
+        .admin-card-body {
+            padding: 1.5rem;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--hover-color);
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .message.error {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #b91c1c;
+            display: block;
+        }
+        
+        .message.success {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            color: #047857;
+            display: block;
+        }
+        
+        .grants-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .grants-table th, .grants-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .grants-table th {
+            background: var(--light-gray);
+            font-weight: 600;
+        }
+        
+        .grants-table tbody tr:hover {
+            background: rgba(42, 100, 150, 0.05);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: #d1fae5;
+            color: #047857;
+        }
+        
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .badge-danger {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        
+        .code-display {
+            background: var(--light-gray);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 0.5rem;
+            margin: 1rem 0;
+        }
+        
+        .dataset-list {
+            display: grid;
+            gap: 0.5rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .dataset-option {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .dataset-option:hover {
+            background: var(--light-gray);
+        }
+        
+        .dataset-option.selected {
+            border-color: var(--primary-color);
+            background: rgba(42, 100, 150, 0.1);
+        }
+        
+        .auth-required {
+            text-align: center;
+            padding: 3rem;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 1rem;
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="title">⚙️ Admin Panel</h1>
+            <p class="subtitle">Manage Private Dataset Access</p>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="admin-container">
+            <!-- Auth Required Message -->
+            <div id="auth-required" class="admin-card auth-required" style="display: none;">
+                <h2>🔒 Authentication Required</h2>
+                <p>Enter your admin token to continue.</p>
+                <div class="form-group" style="max-width: 400px; margin: 1rem auto;">
+                    <input type="password" id="admin-token-input" placeholder="Admin Token">
+                </div>
+                <button class="btn btn-primary" onclick="authenticate()">Login</button>
+                <div id="auth-error" class="message" style="max-width: 400px; margin: 1rem auto;"></div>
+            </div>
+            
+            <!-- Admin Content -->
+            <div id="admin-content" style="display: none;">
+                <!-- Grant Access Card -->
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <h2>📧 Grant Access to Reviewer</h2>
+                    </div>
+                    <div class="admin-card-body">
+                        <div id="grant-message" class="message"></div>
+                        
+                        <form id="grant-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="reviewer-email">Reviewer Email</label>
+                                    <input type="email" id="reviewer-email" required 
+                                           placeholder="reviewer@journal.com">
+                                </div>
+                                <div class="form-group">
+                                    <label for="expires-days">Access Duration (days)</label>
+                                    <input type="number" id="expires-days" value="90" min="1" max="365">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Select Private Dataset</label>
+                                <div id="private-datasets" class="dataset-list">
+                                    <p>Loading datasets...</p>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" id="grant-btn">
+                                Grant Access & Send Email
+                            </button>
+                        </form>
+                        
+                        <!-- Access Code Display -->
+                        <div id="access-code-result" style="display: none;">
+                            <h3>✅ Access Granted!</h3>
+                            <p>Access code sent to: <strong id="result-email"></strong></p>
+                            <p>Dataset: <strong id="result-dataset"></strong></p>
+                            <p>The access code is:</p>
+                            <div class="code-display" id="result-code"></div>
+                            <p><em>This code has been emailed to the reviewer. You can also share it directly if needed.</em></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- View Grants Card -->
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <h2>📋 Current Access Grants</h2>
+                    </div>
+                    <div class="admin-card-body">
+                        <div class="form-group">
+                            <label for="filter-dataset">Filter by Dataset</label>
+                            <select id="filter-dataset">
+                                <option value="">Select a dataset...</option>
+                            </select>
+                        </div>
+                        
+                        <div id="grants-container">
+                            <p>Select a dataset to view its access grants.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <a href="/" class="back-link">← Back to public datasets</a>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>2026 Earlham Institute | CellXGene Explorer | MIT Licensed</p>
+        </div>
+    </footer>
+
+    <script>
+        const API_BASE = '/api/private';
+        let adminToken = '';
+        let privateDatasets = [];
+        let selectedDatasetId = '';
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check if auth is required
+            try {
+                const authCheck = await fetch(`${API_BASE}/admin/auth-required`);
+                const authData = await authCheck.json();
+                
+                if (!authData.auth_required) {
+                    // No auth required, skip login
+                    adminToken = 'no-auth-required';
+                    showAdminContent();
+                    return;
+                }
+            } catch (error) {
+                console.error('Error checking auth:', error);
+            }
+            
+            // Check if token is in localStorage
+            adminToken = localStorage.getItem('adminToken') || '';
+            
+            if (adminToken) {
+                showAdminContent();
+            } else {
+                document.getElementById('auth-required').style.display = 'block';
+            }
+        });
+        
+        function authenticate() {
+            adminToken = document.getElementById('admin-token-input').value;
+            
+            if (!adminToken) {
+                showAuthError('Please enter an admin token');
+                return;
+            }
+            
+            // Store token and show admin content
+            localStorage.setItem('adminToken', adminToken);
+            showAdminContent();
+        }
+        
+        function showAuthError(message) {
+            const errorEl = document.getElementById('auth-error');
+            errorEl.className = 'message error';
+            errorEl.textContent = message;
+        }
+        
+        async function showAdminContent() {
+            document.getElementById('auth-required').style.display = 'none';
+            document.getElementById('admin-content').style.display = 'block';
+            
+            await loadPrivateDatasets();
+        }
+        
+        async function loadPrivateDatasets() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/private-datasets`, {
+                    headers: { 'X-Admin-Token': adminToken }
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('adminToken');
+                    location.reload();
+                    return;
+                }
+                
+                const data = await response.json();
+                privateDatasets = data.datasets || [];
+                
+                const container = document.getElementById('private-datasets');
+                const filterSelect = document.getElementById('filter-dataset');
+                
+                if (privateDatasets.length > 0) {
+                    // Populate dataset selection
+                    container.innerHTML = privateDatasets.map(ds => `
+                        <div class="dataset-option" data-id="${ds.id}" onclick="selectDataset('${ds.id}', this)">
+                            <strong>${escapeHtml(ds.display_name)}</strong>
+                            <br><small>${ds.cell_count?.toLocaleString() || 0} cells | ${escapeHtml(ds.organism)}</small>
+                        </div>
+                    `).join('');
+                    
+                    // Populate filter dropdown
+                    filterSelect.innerHTML = '<option value="">Select a dataset...</option>' +
+                        privateDatasets.map(ds => `<option value="${ds.id}">${escapeHtml(ds.display_name)}</option>`).join('');
+                } else {
+                    container.innerHTML = `
+                        <p>No private datasets found.</p>
+                        <div class="form-group">
+                            <label>Or enter dataset ID manually:</label>
+                            <input type="text" id="manual-dataset-id" placeholder="Enter dataset ID">
+                        </div>
+                    `;
+                    
+                    // Listen for manual input
+                    const manualInput = document.getElementById('manual-dataset-id');
+                    if (manualInput) {
+                        manualInput.addEventListener('input', (e) => {
+                            selectedDatasetId = e.target.value;
+                        });
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error loading datasets:', error);
+                document.getElementById('private-datasets').innerHTML = `
+                    <p>Error loading datasets.</p>
+                    <div class="form-group">
+                        <label>Enter dataset ID manually:</label>
+                        <input type="text" id="manual-dataset-id" placeholder="Enter dataset ID">
+                    </div>
+                `;
+            }
+        }
+        
+        function selectDataset(datasetId, element) {
+            // Remove selected class from all
+            document.querySelectorAll('.dataset-option').forEach(el => el.classList.remove('selected'));
+            // Add to clicked element
+            element.classList.add('selected');
+            selectedDatasetId = datasetId;
+        }
+        
+        // Grant form submission
+        document.getElementById('grant-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('reviewer-email').value;
+            const expiresDays = parseInt(document.getElementById('expires-days').value);
+            const datasetId = selectedDatasetId || document.getElementById('manual-dataset-id')?.value;
+            
+            if (!datasetId) {
+                showGrantMessage('Please enter a dataset ID', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById('grant-btn');
+            btn.disabled = true;
+            btn.textContent = 'Granting access...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/grant`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Token': adminToken
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        dataset_id: datasetId,
+                        expires_in_days: expiresDays
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Show success with code
+                    document.getElementById('result-email').textContent = email;
+                    document.getElementById('result-dataset').textContent = datasetId;
+                    document.getElementById('result-code').textContent = data.access_code;
+                    document.getElementById('access-code-result').style.display = 'block';
+                    
+                    showGrantMessage('Access granted successfully!', 'success');
+                    
+                    // Clear form
+                    document.getElementById('reviewer-email').value = '';
+                } else {
+                    if (response.status === 401) {
+                        // Token invalid
+                        localStorage.removeItem('adminToken');
+                        location.reload();
+                    } else {
+                        showGrantMessage(data.error || 'Failed to grant access', 'error');
+                    }
+                }
+            } catch (error) {
+                showGrantMessage('Network error. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Grant Access & Send Email';
+            }
+        });
+        
+        function showGrantMessage(message, type) {
+            const el = document.getElementById('grant-message');
+            el.className = `message ${type}`;
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+        
+        // Filter dataset change
+        document.getElementById('filter-dataset').addEventListener('change', async (e) => {
+            const datasetId = e.target.value;
+            if (!datasetId) {
+                document.getElementById('grants-container').innerHTML = '<p>Select a dataset to view its access grants.</p>';
+                return;
+            }
+            
+            await loadGrants(datasetId);
+        });
+        
+        async function loadGrants(datasetId) {
+            const container = document.getElementById('grants-container');
+            container.innerHTML = '<p>Loading grants...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/grants/${datasetId}`, {
+                    headers: { 'X-Admin-Token': adminToken }
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('adminToken');
+                    location.reload();
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.grants && data.grants.length > 0) {
+                    container.innerHTML = `
+                        <table class="grants-table">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Expires</th>
+                                    <th>Accesses</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.grants.map(grant => `
+                                    <tr>
+                                        <td>${escapeHtml(grant.email)}</td>
+                                        <td>${getStatusBadge(grant)}</td>
+                                        <td>${formatDate(grant.created_at)}</td>
+                                        <td>${formatDate(grant.expires_at)}</td>
+                                        <td>${grant.access_count}</td>
+                                        <td>
+                                            ${!grant.revoked ? `
+                                                <button class="btn btn-danger" onclick="revokeGrant('${grant.id}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+                                                    Revoke
+                                                </button>
+                                            ` : '-'}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    container.innerHTML = '<p>No access grants for this dataset.</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p class="error">Failed to load grants.</p>';
+            }
+        }
+        
+        function getStatusBadge(grant) {
+            if (grant.revoked) {
+                return '<span class="badge badge-danger">Revoked</span>';
+            }
+            if (grant.expired) {
+                return '<span class="badge badge-warning">Expired</span>';
+            }
+            if (grant.verified) {
+                return '<span class="badge badge-success">Verified</span>';
+            }
+            return '<span class="badge badge-warning">Pending</span>';
+        }
+        
+        async function revokeGrant(grantId) {
+            if (!confirm('Are you sure you want to revoke this access?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/revoke/${grantId}`, {
+                    method: 'POST',
+                    headers: { 'X-Admin-Token': adminToken }
+                });
+                
+                if (response.ok) {
+                    // Reload grants
+                    const datasetId = document.getElementById('filter-dataset').value;
+                    await loadGrants(datasetId);
+                } else {
+                    alert('Failed to revoke access');
+                }
+            } catch (error) {
+                alert('Network error');
+            }
+        }
+        
+        function formatDate(isoDate) {
+            try {
+                const date = new Date(isoDate);
+                return date.toLocaleDateString();
+            } catch {
+                return isoDate;
+            }
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

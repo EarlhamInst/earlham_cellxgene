@@ -251,29 +251,13 @@ function createDatasetCard(dataset) {
     
     const loadTime = estimateLoadingTime(dataset.file_size_human);
     
-    // Build additional metadata section if available
+    // Build additional metadata button if available
     let additionalMetadataHtml = '';
     if (dataset.additional_metadata && Object.keys(dataset.additional_metadata).length > 0) {
-        const metadataItems = Object.entries(dataset.additional_metadata)
-            .map(([key, values]) => {
-                const displayValues = Array.isArray(values) ? values.join(', ') : values;
-                return `
-                    <div class="metadata-item">
-                        <span class="metadata-label">${formatFieldName(key)}</span>
-                        <span class="metadata-value" title="${escapeHtml(displayValues)}">${escapeHtml(displayValues)}</span>
-                    </div>
-                `;
-            }).join('');
-        
         additionalMetadataHtml = `
-            <div class="additional-metadata-section">
-                <button class="metadata-toggle" onclick="event.stopPropagation(); toggleMetadata('${dataset.id}')">
-                    <span class="toggle-icon">▶</span> Additional Metadata
-                </button>
-                <div class="additional-metadata" id="metadata-${dataset.id}" style="display: none;">
-                    ${metadataItems}
-                </div>
-            </div>
+            <button class="metadata-view-btn" onclick="event.stopPropagation(); showMetadataModal('${dataset.id}')">
+                📋 View Metadata
+            </button>
         `;
     }
     
@@ -569,21 +553,66 @@ function clearFilters() {
 }
 
 /**
- * Toggle metadata section visibility
+ * Show metadata in a modal
  */
-function toggleMetadata(datasetId) {
-    const metadataDiv = document.getElementById(`metadata-${datasetId}`);
-    const button = event.target.closest('.metadata-toggle');
-    const icon = button.querySelector('.toggle-icon');
+function showMetadataModal(datasetId) {
+    const dataset = allDatasets.find(d => d.id === datasetId);
+    if (!dataset || !dataset.additional_metadata) return;
     
-    if (metadataDiv.style.display === 'none') {
-        metadataDiv.style.display = 'grid';
-        icon.textContent = '\u25bc'; // Down arrow
-    } else {
-        metadataDiv.style.display = 'none';
-        icon.textContent = '\u25b6'; // Right arrow
-    }
+    const modal = document.getElementById('metadata-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalBody = document.getElementById('modal-body');
+    
+    // Set title
+    modalTitle.textContent = dataset.display_name;
+    
+    // Build metadata table
+    const metadataRows = Object.entries(dataset.additional_metadata)
+        .sort(([a], [b]) => a.localeCompare(b))  // Sort alphabetically
+        .map(([key, values]) => {
+            const displayValues = Array.isArray(values) ? values.join(', ') : values;
+            return `
+                <tr>
+                    <td class="metadata-table-label">${formatFieldName(key)}</td>
+                    <td class="metadata-table-value">${escapeHtml(displayValues)}</td>
+                </tr>
+            `;
+        }).join('');
+    
+    modalBody.innerHTML = `
+        <table class="metadata-table">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${metadataRows}
+            </tbody>
+        </table>
+    `;
+    
+    // Show modal
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
 }
+
+/**
+ * Close metadata modal
+ */
+function closeMetadataModal() {
+    const modal = document.getElementById('metadata-modal');
+    modal.style.display = 'none';
+    document.body.style.overflow = ''; // Restore scrolling
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeMetadataModal();
+    }
+});
 
 /**
  * Show/hide loading indicator

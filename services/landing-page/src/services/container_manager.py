@@ -424,6 +424,26 @@ class CellxgeneContainerManager:
         """Get the port for an active container."""
         if dataset_id in self.active_containers:
             return self.active_containers[dataset_id][1]
+        
+        # Check if container exists in Docker but not tracked (e.g., after restart)
+        container_name = f"cellxgene-{dataset_id}"
+        try:
+            container = self.client.containers.get(container_name)
+            if container.status == "running":
+                # Get the port from container
+                ports = container.attrs.get("NetworkSettings", {}).get("Ports", {})
+                port_bindings = ports.get("5005/tcp", [])
+                if port_bindings and len(port_bindings) > 0:
+                    port = int(port_bindings[0]["HostPort"])
+                    # Re-add to tracking
+                    self.active_containers[dataset_id] = (container, port, datetime.now())
+                    self.logger.info(f"Re-tracked container {container_name} on port {port}")
+                    return port
+        except docker.errors.NotFound:
+            pass
+        except Exception as e:
+            self.logger.error(f"Error checking container {container_name}: {e}")
+        
         return None
 
     def is_container_ready(self, dataset_id: str) -> bool:

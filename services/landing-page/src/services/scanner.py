@@ -295,9 +295,60 @@ class DatasetScanner:
                         # Skip columns that can't be processed
                         continue
         
+        # Also extract study-level metadata from .uns
+        # .uns can contain dataset-level annotations like publication info, batch info, etc.
+        uns_study_fields = {
+            'title', 'description', 'publication', 'doi', 'authors', 'contributors',
+            'version', 'date_created', 'date_modified', 'license', 'protocol',
+            'batch', 'project', 'study', 'experiment', 'sample_source',
+            'sex', 'disease', 'ethnicity', 'development_stage', 'donor_id',
+            'treatment', 'condition', 'time_point', 'technology', 'method',
+            'sequencing_platform', 'library_preparation', 'institution',
+            'contact', 'funding', 'notes', 'abstract', 'citation'
+        }
+        
+        for key, value in adata.uns.items():
+            # Skip internal keys (start with _) and already extracted fields
+            if key.startswith('_') or key in ['metadata', 'organism', 'tissue', 'assay']:
+                continue
+            
+            key_lower = key.lower()
+            
+            # Check if this looks like a study-level field
+            is_study_level = any(field in key_lower for field in uns_study_fields)
+            
+            if is_study_level:
+                try:
+                    # Handle different value types
+                    if isinstance(value, str):
+                        if value and value not in ['Unknown', 'unknown', 'N/A', 'n/a', 'NA', 'na']:
+                            additional_metadata[key] = value
+                    elif isinstance(value, (list, tuple)):
+                        # Filter out empty values
+                        clean_list = [str(v) for v in value if v and str(v) not in ['Unknown', 'unknown', 'N/A', 'n/a']]
+                        if clean_list and len(clean_list) <= 20:  # Reasonable limit for display
+                            additional_metadata[key] = clean_list
+                    elif isinstance(value, dict):
+                        # For nested dicts, just note it exists but don't expand
+                        continue
+                    elif pd is not None and isinstance(value, pd.DataFrame):
+                        # Skip dataframes
+                        continue
+                    elif hasattr(value, '__len__') and len(value) > 100:
+                        # Skip large arrays/objects
+                        continue
+                    else:
+                        # Try to convert simple values to string
+                        str_value = str(value)
+                        if len(str_value) <= 500:  # Reasonable length limit
+                            additional_metadata[key] = str_value
+                except Exception:
+                    # Skip values that can't be processed
+                    continue
+        
         metadata["additional_metadata"] = additional_metadata
 
-        # Extract optional fields from .uns if available
+        # Extract optional fields from .uns if available (for main metadata display)
         optional_fields = [
             "doi",
             "publication",

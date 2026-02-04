@@ -46,6 +46,21 @@ class ServiceConfig:
     # Optional features
     enable_hot_reload: bool
     hot_reload_interval_seconds: int
+    
+    # Private datasets
+    private_data_directory: Optional[Path] = None
+    grants_storage_path: Optional[Path] = None
+    admin_token: Optional[str] = None
+    
+    # Email configuration (optional)
+    smtp_host: Optional[str] = None
+    smtp_port: int = 587
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_email: Optional[str] = None
+    
+    # Base URL for links in emails
+    base_url: str = "http://localhost:8000"
 
     @classmethod
     def from_environment(cls) -> "ServiceConfig":
@@ -101,6 +116,25 @@ class ServiceConfig:
         # Optional: Hot reload
         enable_hot_reload = os.getenv("ENABLE_HOT_RELOAD", "false").lower() == "true"
         hot_reload_interval = int(os.getenv("HOT_RELOAD_INTERVAL_SECONDS", "60"))
+        
+        # Optional: Private datasets
+        private_data_dir_str = os.getenv("PRIVATE_DATA_DIRECTORY")
+        private_data_directory = Path(private_data_dir_str) if private_data_dir_str else None
+        
+        grants_storage_str = os.getenv("GRANTS_STORAGE_PATH")
+        grants_storage_path = Path(grants_storage_str) if grants_storage_str else log_directory / "access_grants.json"
+        
+        admin_token = os.getenv("ADMIN_TOKEN")
+        
+        # Optional: Email configuration
+        smtp_host = os.getenv("SMTP_HOST")
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        smtp_username = os.getenv("SMTP_USERNAME")
+        smtp_password = os.getenv("SMTP_PASSWORD")
+        smtp_from_email = os.getenv("SMTP_FROM_EMAIL")
+        
+        # Base URL for links in emails
+        base_url = os.getenv("BASE_URL", "http://localhost:8000")
 
         return cls(
             data_directory=data_directory,
@@ -112,6 +146,15 @@ class ServiceConfig:
             cellxgene_url=cellxgene_url,
             enable_hot_reload=enable_hot_reload,
             hot_reload_interval_seconds=hot_reload_interval,
+            private_data_directory=private_data_directory,
+            grants_storage_path=grants_storage_path,
+            admin_token=admin_token,
+            smtp_host=smtp_host,
+            smtp_port=smtp_port,
+            smtp_username=smtp_username,
+            smtp_password=smtp_password,
+            smtp_from_email=smtp_from_email,
+            base_url=base_url,
         )
 
     def to_dict(self) -> dict:

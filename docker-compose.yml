@@ -13,9 +13,23 @@ services:
       - LOG_LEVEL=${LANDING_PAGE_LOG_LEVEL:-INFO}
       - HOST_DATA_DIRECTORY=${HOST_DATA_DIRECTORY:-./data/datasets}  # Host path for spawning containers
       - CELLXGENE_MEMORY_PER_WORKER_GB=${CELLXGENE_MEMORY_PER_WORKER_GB:-4}
+      # Private datasets
+      - PRIVATE_DATA_DIRECTORY=/data/private
+      - HOST_PRIVATE_DATA_DIRECTORY=${HOST_PRIVATE_DATA_DIRECTORY:-./data/private}
+      - GRANTS_STORAGE_PATH=/data/logs/access_grants.json
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+      - SECRET_KEY=${SECRET_KEY:-}
+      # Email configuration (optional)
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@earlham.ac.uk}
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
     volumes:
       - ${HOST_DATA_DIRECTORY:-./data/datasets}:/data/datasets:ro
-      - ${HOST_LOG_DIRECTORY:-./data/logs}:/data/logs:ro
+      - ${HOST_PRIVATE_DATA_DIRECTORY:-./data/private}:/data/private:ro
+      - ${HOST_LOG_DIRECTORY:-./data/logs}:/data/logs
       - /var/run/docker.sock:/var/run/docker.sock  # For dynamic container management
       
     ports:

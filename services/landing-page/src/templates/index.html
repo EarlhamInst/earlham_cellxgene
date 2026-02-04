@@ -119,6 +119,20 @@
         </div>
     </main>
 
+    <!-- Metadata Modal -->
+    <div id="metadata-modal" class="modal" style="display: none;">
+        <div class="modal-overlay" onclick="closeMetadataModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Dataset Metadata</h3>
+                <button class="modal-close" onclick="closeMetadataModal()" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Metadata content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
     <footer class="footer">
         <div class="container">
             <p>2026 Earlham Institute | CellXGene Explorer | MIT Licensed</p>
