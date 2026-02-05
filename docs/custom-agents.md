@@ -414,7 +414,7 @@ Tasks follow a strict format for consistency:
 
 This custom agent workflow enforces the project constitution:
 
-- ✅ **Unit Testing**: Tasks include test generation and validation
+- ✅ **Unit Testing**: Tasks include test generation and validation (minimum 80% coverage)
 - ✅ **Modular Architecture**: Plan enforces clear module boundaries
 - ✅ **Code Clarity**: Documentation tasks are always included
 - ✅ **Fail-Fast**: Error handling tasks are explicit
