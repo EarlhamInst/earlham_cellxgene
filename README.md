@@ -206,6 +206,7 @@ adata.write_h5ad("your_dataset.h5ad")
 
 All documentation is located in the `docs/` directory:
 
+- **[Custom Agents (Speckit)](docs/custom-agents.md)** - Specification-driven development workflow
 - **[Architecture](docs/architecture.md)** - System design, components, and data flow
 - **[Deployment](docs/deployment.md)** - Remote VM deployment guide (Ubuntu/CentOS)
 - **[API Documentation](docs/api-documentation.md)** - REST API reference
@@ -217,6 +218,21 @@ All documentation is located in the `docs/` directory:
 - **[CI Fixes](docs/ci-fixes.md)** - CI/CD configuration notes
 
 ## Development
+
+### Custom Agents (Speckit)
+
+This project uses a specification-driven development workflow powered by custom GitHub Copilot agents. These agents automate the feature development lifecycle from specification to implementation:
+
+- **speckit.specify** - Create feature specifications from natural language
+- **speckit.clarify** - Identify and resolve specification ambiguities
+- **speckit.plan** - Generate technical plans and architecture
+- **speckit.tasks** - Break down features into actionable tasks
+- **speckit.analyze** - Check consistency across artifacts
+- **speckit.implement** - Execute implementation tasks
+
+See [Custom Agents documentation](docs/custom-agents.md) for detailed usage and workflow.
+
+### Running Tests
 
 Run tests with:
 ```bash

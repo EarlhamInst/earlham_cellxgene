@@ -6,6 +6,7 @@ Complete documentation for the CellXGene Explorer project.
 
 - **[Main README](../README.md)** - Project overview, quick start, and features
 - **[Deployment Guide](deployment.md)** - Step-by-step deployment to remote VMs
+- **[Custom Agents (Speckit)](custom-agents.md)** - Specification-driven development workflow
 
 ## Architecture & Design
 
@@ -17,6 +18,10 @@ Complete documentation for the CellXGene Explorer project.
 
 - **[Adding Datasets](adding-datasets.md)** - How to add new datasets to the catalog
 - **[API Documentation](api-documentation.md)** - REST API endpoints and usage
+
+## Development Workflow
+
+- **[Custom Agents (Speckit)](custom-agents.md)** - Automated specification-driven development
 
 ## Customization
 
@@ -35,6 +40,7 @@ Complete documentation for the CellXGene Explorer project.
 - **Add a dataset**: See [adding-datasets.md](adding-datasets.md) → Dataset requirements
 - **Fix errors**: See [troubleshooting.md](troubleshooting.md) → Common issues
 - **Understand system**: See [architecture.md](architecture.md) → Component overview
+- **Develop new feature**: See [custom-agents.md](custom-agents.md) → Speckit workflow
 
 ### API Reference
 
@@ -59,6 +65,7 @@ Full API documentation: [api-documentation.md](api-documentation.md)
 | [inactivity-timeout.md](inactivity-timeout.md) | Auto-cleanup system | Admins |
 | [earlham-styling.md](earlham-styling.md) | Branding guidelines | Designers |
 | [ci-fixes.md](ci-fixes.md) | CI/CD notes | Developers |
+| [custom-agents.md](custom-agents.md) | Speckit development workflow | Developers |
 
 ## Contributing
 
