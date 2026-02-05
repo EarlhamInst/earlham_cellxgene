@@ -120,6 +120,45 @@ LANDING_PAGE_DEBUG=false
 LANDING_PAGE_LOG_LEVEL=INFO
 ```
 
+### Private Datasets Configuration
+
+To enable private dataset functionality with access control:
+
+```bash
+# Private datasets directory
+HOST_PRIVATE_DATA_DIRECTORY=/opt/cellxgene_stack/data/private
+
+# Admin panel authentication (REQUIRED - generate a secure random token)
+ADMIN_TOKEN=your-secure-admin-token-here
+
+# Flask session secret key (REQUIRED - generate a secure random string)
+SECRET_KEY=your-secure-secret-key-here
+
+# Base URL for shareable links (use your public domain)
+BASE_URL=https://your-domain.com
+
+# Email configuration for sending access codes and share links (optional)
+SMTP_HOST=smtp.your-email-provider.com
+SMTP_PORT=587
+SMTP_USERNAME=your-smtp-username
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM_EMAIL=noreply@your-domain.com
+```
+
+**Generate secure tokens:**
+```bash
+# Generate ADMIN_TOKEN
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Generate SECRET_KEY
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+**Admin Panel Access:**
+- URL: `https://your-domain.com/admin`
+- Enter the `ADMIN_TOKEN` to authenticate
+- Features: Grant email access, create shareable links, view statistics
+
 ### Memory Recommendations by VM Size
 
 | VM RAM | CPU Cores | CELLXGENE_WORKERS | Memory per Worker | Max Concurrent Datasets |
@@ -171,11 +210,12 @@ Example metadata JSON (`dataset_name.json`):
 
 ## Step 5: Build and Deploy
 
+### Development
 ```bash
 # Build Docker images
 docker compose build
 
-# Start services in background
+# Start services in background (faster healthchecks for dev)
 docker compose up -d
 
 # Check service status
@@ -184,6 +224,23 @@ docker compose ps
 # View logs
 docker compose logs -f landing-page
 ```
+
+### Production
+```bash
+# Build Docker images
+docker compose build
+
+# Start services with production overrides (longer healthcheck timeouts)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Check service status
+docker compose ps
+```
+
+**Note:** The production compose file (`docker-compose.prod.yml`) uses:
+- Longer healthcheck intervals (30s vs 5s) to avoid false positives under load
+- Longer start periods (40s vs 10s) for slower startup environments
+- Log rotation to prevent disk fill
 
 ### Verify Deployment
 

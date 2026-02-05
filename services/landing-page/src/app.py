@@ -26,6 +26,7 @@ from .startup import validate_and_initialize
 from .errors import format_error_response
 from .services.container_manager import CellxgeneContainerManager
 from .models.access_grant import AccessGrantStore
+from .models.shareable_link import ShareableLinkStore
 from .services.email_service import EmailService, EmailConfig, MockEmailService
 
 
@@ -152,6 +153,12 @@ def create_app(config=None, testing=False):
         grant_store = AccessGrantStore(service_config.grants_storage_path)
         app.config["GRANT_STORE"] = grant_store
         logger.info(f"Access grant store initialized: {service_config.grants_storage_path}")
+        
+        # Shareable link store (same directory as grants)
+        links_storage_path = service_config.grants_storage_path.parent / "shareable_links.json"
+        link_store = ShareableLinkStore(links_storage_path)
+        app.config["LINK_STORE"] = link_store
+        logger.info(f"Shareable link store initialized: {links_storage_path}")
         
         # Admin token for grant management
         app.config["ADMIN_TOKEN"] = service_config.admin_token

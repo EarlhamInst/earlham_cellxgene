@@ -221,6 +221,169 @@ If you did not request this access, please ignore this email.
         
         return self._send_email(to_email, subject, text_body, html_body)
     
+    def send_share_link(
+        self,
+        to_email: str,
+        share_url: str,
+        dataset_name: str,
+        expires_at: str,
+        created_by: Optional[str] = None,
+        label: Optional[str] = None
+    ) -> bool:
+        """
+        Send a shareable link email.
+        
+        Args:
+            to_email: Recipient email address
+            share_url: The full shareable URL
+            dataset_name: Name of the dataset
+            expires_at: ISO timestamp when link expires
+            created_by: Email of person who created the link
+            label: Optional label describing the link purpose
+            
+        Returns:
+            True if email was sent successfully
+        """
+        subject = f"Shared CellXGene Dataset: {dataset_name}"
+        
+        # Format expiry date nicely
+        from datetime import datetime
+        try:
+            expires = datetime.fromisoformat(expires_at)
+            expires_formatted = expires.strftime("%B %d, %Y")
+        except Exception:
+            expires_formatted = expires_at
+        
+        # Build the label/context section
+        context_html = ""
+        context_text = ""
+        if label:
+            context_html = f'<p style="color: #666; font-style: italic;">"{label}"</p>'
+            context_text = f'Note: "{label}"\n\n'
+        
+        if created_by:
+            context_html += f'<p style="color: #666; font-size: 14px;">Shared by: {created_by}</p>'
+            context_text += f"Shared by: {created_by}\n"
+        
+        html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #1a365d 0%, #2a6496 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }}
+        .content {{
+            background: #f9f9f9;
+            padding: 30px;
+            border: 1px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+        }}
+        .dataset-name {{
+            background: #e8f4f8;
+            padding: 15px 20px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #2a6496;
+            font-size: 18px;
+            text-align: center;
+            margin: 20px 0;
+        }}
+        .footer {{
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 12px;
+        }}
+        .info-box {{
+            background: #f0f7ff;
+            border: 1px solid #2a6496;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 14px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔬 CellXGene Explorer</h1>
+        <p>Earlham Institute</p>
+    </div>
+    <div class="content">
+        <p>Hello,</p>
+        
+        <p>You've been invited to explore a single-cell dataset. Click the button below to access it immediately:</p>
+        
+        <p class="dataset-name">{dataset_name}</p>
+        
+        {context_html}
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{share_url}" style="
+                display: inline-block;
+                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                color: white;
+                text-decoration: none;
+                padding: 18px 40px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 18px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            ">🚀 Open Dataset</a>
+        </div>
+        
+        <p style="text-align: center; color: #666; font-size: 13px;">
+            Or copy this link: <a href="{share_url}" style="color: #2a6496; word-break: break-all;">{share_url}</a>
+        </p>
+        
+        <div class="info-box">
+            ℹ️ <strong>One-click access</strong> - No login required. Just click the button above.
+            <br><br>
+            ⏰ <strong>Link expires:</strong> {expires_formatted}
+        </div>
+    </div>
+    <div class="footer">
+        <p>Earlham Institute | CellXGene Explorer</p>
+        <p>If you were not expecting this email, you can safely ignore it.</p>
+    </div>
+</body>
+</html>
+"""
+        
+        text_body = f"""
+CellXGene Explorer - Shared Dataset
+
+You've been invited to explore a single-cell dataset!
+
+Dataset: {dataset_name}
+
+{context_text}
+Click here to access immediately (no login required):
+{share_url}
+
+This link expires on {expires_formatted}.
+
+---
+Earlham Institute | CellXGene Explorer
+If you were not expecting this email, you can safely ignore it.
+"""
+        
+        return self._send_email(to_email, subject, text_body, html_body)
+    
     def send_access_revoked(self, to_email: str, dataset_name: str) -> bool:
         """
         Send notification that access has been revoked.
@@ -342,5 +505,32 @@ class MockEmailService:
         """Log revocation email."""
         self.logger.warning(
             f"[MOCK EMAIL] Access revoked for {to_email} (Dataset: {dataset_name})"
+        )
+        return True
+    
+    def send_share_link(
+        self,
+        to_email: str,
+        share_url: str,
+        dataset_name: str,
+        expires_at: str,
+        created_by: Optional[str] = None,
+        label: Optional[str] = None
+    ) -> bool:
+        """Log share link email."""
+        email_record = {
+            "type": "share_link",
+            "to": to_email,
+            "url": share_url,
+            "dataset": dataset_name,
+            "expires": expires_at,
+            "created_by": created_by,
+            "label": label
+        }
+        self.sent_emails.append(email_record)
+        
+        self.logger.warning(
+            f"[MOCK EMAIL] Share link for {to_email}: {share_url} "
+            f"(Dataset: {dataset_name})"
         )
         return True

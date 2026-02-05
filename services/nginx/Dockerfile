@@ -9,8 +9,8 @@ RUN mkdir -p /var/log/nginx
 # Expose port
 EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+# Health check (shorter intervals for faster feedback in development)
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=2 \
     CMD wget --quiet --tries=1 --spider http://localhost/api/health || exit 1
 
 # Start nginx

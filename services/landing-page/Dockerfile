@@ -28,8 +28,8 @@ RUN useradd -m -u 1000 appuser && \
 # Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+# Health check (shorter intervals for faster feedback in development)
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=2 \
     CMD curl -f http://localhost:8000/api/health || exit 1
 
 # Run application

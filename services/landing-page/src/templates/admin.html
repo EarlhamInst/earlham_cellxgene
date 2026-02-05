@@ -240,7 +240,7 @@
                 <!-- Grant Access Card -->
                 <div class="admin-card">
                     <div class="admin-card-header">
-                        <h2>📧 Grant Access to Reviewer</h2>
+                        <h2>📧 Grant Access by Email</h2>
                     </div>
                     <div class="admin-card-body">
                         <div id="grant-message" class="message"></div>
@@ -248,7 +248,7 @@
                         <form id="grant-form">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="reviewer-email">Reviewer Email</label>
+                                    <label for="reviewer-email">Email</label>
                                     <input type="email" id="reviewer-email" required 
                                            placeholder="reviewer@journal.com">
                                 </div>
@@ -282,6 +282,101 @@
                     </div>
                 </div>
                 
+                <!-- Create Shareable Link Card -->
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <h2>🔗 Create Shareable Link</h2>
+                    </div>
+                    <div class="admin-card-body">
+                        <p style="margin-bottom: 1rem; color: #666;">
+                            Create a one-click link that provides instant access to a private dataset. 
+                            No login or code entry required for recipients.
+                        </p>
+                        
+                        <div id="share-link-message" class="message"></div>
+                        
+                        <form id="share-link-form">
+                            <div class="form-group">
+                                <label>Select Private Dataset</label>
+                                <div id="share-link-datasets" class="dataset-list">
+                                    <p>Loading datasets...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="share-link-label">Link Label (optional)</label>
+                                    <input type="text" id="share-link-label" 
+                                           placeholder="e.g., For Nature reviewers">
+                                </div>
+                                <div class="form-group">
+                                    <label for="share-link-expires">Expires In (days)</label>
+                                    <input type="number" id="share-link-expires" value="30" min="1" max="365">
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="share-link-max-uses">Max Uses (optional)</label>
+                                    <input type="number" id="share-link-max-uses" 
+                                           placeholder="Unlimited" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="share-link-creator">Your Email</label>
+                                    <input type="email" id="share-link-creator" required
+                                           placeholder="your@email.com">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" style="border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: 0.5rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="share-link-send-email" style="width: auto;">
+                                    Send link via email
+                                </label>
+                            </div>
+                            
+                            <div id="share-link-email-section" style="display: none;">
+                                <div class="form-group">
+                                    <label for="share-link-recipient">Recipient Email</label>
+                                    <input type="email" id="share-link-recipient" 
+                                           placeholder="recipient@example.com">
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" id="share-link-btn">
+                                🔗 Create Shareable Link
+                            </button>
+                        </form>
+                        
+                        <!-- Shareable Link Result -->
+                        <div id="share-link-result" style="display: none; margin-top: 1.5rem; background: #d1fae5; border: 2px solid #10b981; border-radius: 12px; padding: 1.5rem;">
+                            <h3 style="color: #047857; margin-top: 0;">✅ Shareable Link Created!</h3>
+                            <p>Dataset: <strong id="share-result-dataset"></strong></p>
+                            <p id="share-result-email-sent" style="display: none;">
+                                Email sent to: <strong id="share-result-recipient"></strong>
+                            </p>
+                            <p>Expires: <strong id="share-result-expires"></strong></p>
+                            <p id="share-result-max-uses-text">Max uses: <strong id="share-result-max-uses"></strong></p>
+                            
+                            <div style="margin: 1rem 0; background: white; padding: 1rem; border-radius: 8px;">
+                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Share this link:</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <input type="text" id="share-result-url" readonly 
+                                           style="flex: 1; font-family: monospace; font-size: 0.9rem; padding: 0.75rem; border: 2px solid #10b981; border-radius: 6px;">
+                                    <button type="button" class="btn btn-primary" onclick="copyShareLink()" 
+                                            style="white-space: nowrap; background: #10b981;">
+                                        📋 Copy
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <p style="color: #065f46; font-size: 0.9rem; margin-bottom: 0;">
+                                <em>⚠️ Keep this link secure - anyone with this link can access the dataset.</em>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- View Grants Card -->
                 <div class="admin-card">
                     <div class="admin-card-header">
@@ -297,6 +392,25 @@
                         
                         <div id="grants-container">
                             <p>Select a dataset to view its access grants.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- View Share Links Card -->
+                <div class="admin-card">
+                    <div class="admin-card-header">
+                        <h2>🔗 Shareable Links</h2>
+                    </div>
+                    <div class="admin-card-body">
+                        <div class="form-group">
+                            <label for="filter-links-dataset">Filter by Dataset</label>
+                            <select id="filter-links-dataset">
+                                <option value="">Select a dataset...</option>
+                            </select>
+                        </div>
+                        
+                        <div id="links-container">
+                            <p>Select a dataset to view its shareable links.</p>
                         </div>
                     </div>
                 </div>
@@ -317,6 +431,7 @@
         let adminToken = '';
         let privateDatasets = [];
         let selectedDatasetId = '';
+        let selectedShareLinkDatasetId = '';
         
         document.addEventListener('DOMContentLoaded', async () => {
             // Check if auth is required
@@ -386,10 +501,12 @@
                 privateDatasets = data.datasets || [];
                 
                 const container = document.getElementById('private-datasets');
+                const shareLinkContainer = document.getElementById('share-link-datasets');
                 const filterSelect = document.getElementById('filter-dataset');
+                const filterLinksSelect = document.getElementById('filter-links-dataset');
                 
                 if (privateDatasets.length > 0) {
-                    // Populate dataset selection
+                    // Populate dataset selection for access grants
                     container.innerHTML = privateDatasets.map(ds => `
                         <div class="dataset-option" data-id="${ds.id}" onclick="selectDataset('${ds.id}', this)">
                             <strong>${escapeHtml(ds.display_name)}</strong>
@@ -397,23 +514,41 @@
                         </div>
                     `).join('');
                     
-                    // Populate filter dropdown
-                    filterSelect.innerHTML = '<option value="">Select a dataset...</option>' +
+                    // Populate dataset selection for share links
+                    shareLinkContainer.innerHTML = privateDatasets.map(ds => `
+                        <div class="dataset-option" data-id="${ds.id}" onclick="selectShareLinkDataset('${ds.id}', this)">
+                            <strong>${escapeHtml(ds.display_name)}</strong>
+                            <br><small>${ds.cell_count?.toLocaleString() || 0} cells | ${escapeHtml(ds.organism)}</small>
+                        </div>
+                    `).join('');
+                    
+                    // Populate filter dropdowns
+                    const optionsHtml = '<option value="">Select a dataset...</option>' +
                         privateDatasets.map(ds => `<option value="${ds.id}">${escapeHtml(ds.display_name)}</option>`).join('');
+                    filterSelect.innerHTML = optionsHtml;
+                    filterLinksSelect.innerHTML = optionsHtml;
                 } else {
-                    container.innerHTML = `
+                    const manualInputHtml = `
                         <p>No private datasets found.</p>
                         <div class="form-group">
                             <label>Or enter dataset ID manually:</label>
                             <input type="text" id="manual-dataset-id" placeholder="Enter dataset ID">
                         </div>
                     `;
+                    container.innerHTML = manualInputHtml;
+                    shareLinkContainer.innerHTML = manualInputHtml.replace('manual-dataset-id', 'manual-share-link-dataset-id');
                     
                     // Listen for manual input
                     const manualInput = document.getElementById('manual-dataset-id');
                     if (manualInput) {
                         manualInput.addEventListener('input', (e) => {
                             selectedDatasetId = e.target.value;
+                        });
+                    }
+                    const manualShareInput = document.getElementById('manual-share-link-dataset-id');
+                    if (manualShareInput) {
+                        manualShareInput.addEventListener('input', (e) => {
+                            selectedShareLinkDatasetId = e.target.value;
                         });
                     }
                 }
@@ -427,12 +562,19 @@
                         <input type="text" id="manual-dataset-id" placeholder="Enter dataset ID">
                     </div>
                 `;
+                document.getElementById('share-link-datasets').innerHTML = `
+                    <p>Error loading datasets.</p>
+                    <div class="form-group">
+                        <label>Enter dataset ID manually:</label>
+                        <input type="text" id="manual-share-link-dataset-id" placeholder="Enter dataset ID">
+                    </div>
+                `;
             }
         }
         
         function selectDataset(datasetId, element) {
-            // Remove selected class from all
-            document.querySelectorAll('.dataset-option').forEach(el => el.classList.remove('selected'));
+            // Remove selected class from all in grant form
+            document.querySelectorAll('#private-datasets .dataset-option').forEach(el => el.classList.remove('selected'));
             // Add to clicked element
             element.classList.add('selected');
             selectedDatasetId = datasetId;
@@ -625,6 +767,263 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+        
+        // ============================================
+        // Shareable Link Functions
+        // ============================================
+        
+        function selectShareLinkDataset(datasetId, element) {
+            // Remove selected class from all in share link form
+            document.querySelectorAll('#share-link-datasets .dataset-option').forEach(el => el.classList.remove('selected'));
+            // Add to clicked element
+            element.classList.add('selected');
+            selectedShareLinkDatasetId = datasetId;
+        }
+        
+        // Toggle email section visibility
+        document.getElementById('share-link-send-email').addEventListener('change', (e) => {
+            document.getElementById('share-link-email-section').style.display = e.target.checked ? 'block' : 'none';
+        });
+        
+        // Share link form submission
+        document.getElementById('share-link-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log('Share link form submitted');
+            
+            const datasetId = selectedShareLinkDatasetId || document.getElementById('manual-share-link-dataset-id')?.value;
+            const label = document.getElementById('share-link-label').value.trim();
+            const expiresDays = parseInt(document.getElementById('share-link-expires').value);
+            const maxUsesInput = document.getElementById('share-link-max-uses').value;
+            const maxUses = maxUsesInput ? parseInt(maxUsesInput) : null;
+            const creatorEmail = document.getElementById('share-link-creator').value.trim();
+            const sendEmail = document.getElementById('share-link-send-email').checked;
+            const recipientEmail = document.getElementById('share-link-recipient').value.trim();
+            
+            console.log('Form data:', { datasetId, label, expiresDays, maxUses, creatorEmail, sendEmail, recipientEmail });
+            
+            if (!datasetId) {
+                showShareLinkMessage('Please select a dataset', 'error');
+                return;
+            }
+            
+            if (!creatorEmail) {
+                showShareLinkMessage('Please enter your email', 'error');
+                return;
+            }
+            
+            if (sendEmail && !recipientEmail) {
+                showShareLinkMessage('Please enter a recipient email', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById('share-link-btn');
+            btn.disabled = true;
+            btn.textContent = 'Creating link...';
+            
+            try {
+                console.log('Sending request to API...');
+                const response = await fetch(`${API_BASE}/admin/share-links`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Admin-Token': adminToken
+                    },
+                    body: JSON.stringify({
+                        dataset_id: datasetId,
+                        created_by_email: creatorEmail,
+                        label: label || null,
+                        expires_in_days: expiresDays,
+                        max_uses: maxUses,
+                        send_email: sendEmail,
+                        recipient_email: sendEmail ? recipientEmail : null
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('API response:', response.status, data);
+                
+                if (response.ok) {
+                    console.log('Success! Showing result box');
+                    // Show success with link
+                    document.getElementById('share-result-dataset').textContent = data.dataset_name || datasetId;
+                    document.getElementById('share-result-expires').textContent = formatDate(data.expires_at);
+                    document.getElementById('share-result-url').value = data.share_url;
+                    
+                    if (data.max_uses) {
+                        document.getElementById('share-result-max-uses').textContent = data.max_uses;
+                        document.getElementById('share-result-max-uses-text').style.display = 'block';
+                    } else {
+                        document.getElementById('share-result-max-uses-text').style.display = 'none';
+                    }
+                    
+                    if (data.email_sent) {
+                        document.getElementById('share-result-recipient').textContent = recipientEmail;
+                        document.getElementById('share-result-email-sent').style.display = 'block';
+                    } else {
+                        document.getElementById('share-result-email-sent').style.display = 'none';
+                    }
+                    
+                    document.getElementById('share-link-result').style.display = 'block';
+                    showShareLinkMessage('Shareable link created successfully!', 'success');
+                    
+                    // Scroll to result
+                    document.getElementById('share-link-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Clear form
+                    document.getElementById('share-link-label').value = '';
+                    document.getElementById('share-link-max-uses').value = '';
+                    document.getElementById('share-link-recipient').value = '';
+                    document.getElementById('share-link-send-email').checked = false;
+                    document.getElementById('share-link-email-section').style.display = 'none';
+                    
+                    // Refresh links list if viewing this dataset
+                    const filterDatasetId = document.getElementById('filter-links-dataset').value;
+                    if (filterDatasetId === datasetId) {
+                        await loadShareLinks(datasetId);
+                    }
+                } else {
+                    if (response.status === 401) {
+                        localStorage.removeItem('adminToken');
+                        location.reload();
+                    } else {
+                        showShareLinkMessage(data.error || 'Failed to create link', 'error');
+                    }
+                }
+            } catch (error) {
+                showShareLinkMessage('Network error. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔗 Create Shareable Link';
+            }
+        });
+        
+        function showShareLinkMessage(message, type) {
+            const el = document.getElementById('share-link-message');
+            el.className = `message ${type}`;
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+        
+        function copyShareLink() {
+            const input = document.getElementById('share-result-url');
+            input.select();
+            input.setSelectionRange(0, 99999); // For mobile
+            
+            navigator.clipboard.writeText(input.value).then(() => {
+                // Show brief feedback
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                setTimeout(() => { btn.textContent = originalText; }, 2000);
+            }).catch(() => {
+                // Fallback
+                document.execCommand('copy');
+            });
+        }
+        
+        // Filter share links by dataset
+        document.getElementById('filter-links-dataset').addEventListener('change', async (e) => {
+            const datasetId = e.target.value;
+            if (!datasetId) {
+                document.getElementById('links-container').innerHTML = '<p>Select a dataset to view its shareable links.</p>';
+                return;
+            }
+            
+            await loadShareLinks(datasetId);
+        });
+        
+        async function loadShareLinks(datasetId) {
+            const container = document.getElementById('links-container');
+            container.innerHTML = '<p>Loading links...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/share-links/${datasetId}`, {
+                    headers: { 'X-Admin-Token': adminToken }
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('adminToken');
+                    location.reload();
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.links && data.links.length > 0) {
+                    container.innerHTML = `
+                        <table class="grants-table">
+                            <thead>
+                                <tr>
+                                    <th>Label</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Expires</th>
+                                    <th>Uses</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.links.map(link => `
+                                    <tr>
+                                        <td>${escapeHtml(link.label) || '<em>No label</em>'}</td>
+                                        <td>${getLinkStatusBadge(link)}</td>
+                                        <td>${formatDate(link.created_at)}</td>
+                                        <td>${formatDate(link.expires_at)}</td>
+                                        <td>${link.use_count}${link.max_uses ? ' / ' + link.max_uses : ''}</td>
+                                        <td>
+                                            ${link.is_valid && !link.revoked ? `
+                                                <button class="btn btn-danger" onclick="revokeShareLink('${link.id}', '${datasetId}')" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+                                                    Revoke
+                                                </button>
+                                            ` : '-'}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    container.innerHTML = '<p>No shareable links for this dataset.</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p class="error">Failed to load links.</p>';
+            }
+        }
+        
+        function getLinkStatusBadge(link) {
+            if (link.revoked) {
+                return '<span class="badge badge-danger">Revoked</span>';
+            }
+            if (!link.is_valid) {
+                if (link.max_uses && link.use_count >= link.max_uses) {
+                    return '<span class="badge badge-warning">Exhausted</span>';
+                }
+                return '<span class="badge badge-warning">Expired</span>';
+            }
+            return '<span class="badge badge-success">Active</span>';
+        }
+        
+        async function revokeShareLink(linkId, datasetId) {
+            if (!confirm('Are you sure you want to revoke this shareable link?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/share-links/${linkId}/revoke`, {
+                    method: 'POST',
+                    headers: { 'X-Admin-Token': adminToken }
+                });
+                
+                if (response.ok) {
+                    // Reload links
+                    await loadShareLinks(datasetId);
+                } else {
+                    alert('Failed to revoke link');
+                }
+            } catch (error) {
+                alert('Network error');
+            }
         }
     </script>
 </body>

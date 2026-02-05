@@ -8,12 +8,13 @@ Constitutional Alignment:
 - Principle VI (Accessibility): User-friendly error messages
 """
 
-from flask import Blueprint, jsonify, request, current_app, session
+from flask import Blueprint, jsonify, request, current_app, session, redirect
 from datetime import datetime
 import logging
 from functools import wraps
 
 from ..models.access_grant import AccessGrant, AccessGrantStore, generate_access_code
+from ..models.shareable_link import ShareableLink, ShareableLinkStore, generate_share_token
 from ..errors import format_error_response
 
 private_bp = Blueprint("private", __name__)
@@ -25,18 +26,27 @@ def get_grant_store() -> AccessGrantStore:
     return current_app.config["GRANT_STORE"]
 
 
+def get_link_store() -> ShareableLinkStore:
+    """Get the shareable link store from app config."""
+    return current_app.config["LINK_STORE"]
+
+
 def get_private_catalog():
     """Get the private catalog from app config."""
     return current_app.config.get("PRIVATE_CATALOG")
 
 
 def require_verified_access(f):
-    """Decorator to require verified email access for a dataset."""
+    """Decorator to require verified email or share link access for a dataset."""
     @wraps(f)
     def decorated_function(dataset_id, *args, **kwargs):
-        # Check session for verified email
+        # Check session for verified email or share link access
         verified_email = session.get('verified_email')
-        if not verified_email:
+        share_link_access = session.get('share_link_access', False)
+        verified_datasets = session.get('verified_datasets', [])
+        
+        # Must have either email verification OR share link access
+        if not verified_email and not share_link_access:
             return jsonify({
                 "error": "Authentication required",
                 "message": "Please verify your email to access this dataset",
@@ -44,7 +54,6 @@ def require_verified_access(f):
             }), 401
         
         # Check if this dataset is in the user's verified datasets
-        verified_datasets = session.get('verified_datasets', [])
         if dataset_id not in verified_datasets:
             return jsonify({
                 "error": "Access denied",
@@ -52,12 +61,13 @@ def require_verified_access(f):
                 "error_type": "AccessDenied"
             }), 403
         
-        # Log access
-        store = get_grant_store()
-        grant = store.get_by_email_and_dataset(verified_email, dataset_id)
-        if grant:
-            grant.log_access()
-            store.save(grant)
+        # Log access (only if email-based, share links track their own usage)
+        if verified_email:
+            store = get_grant_store()
+            grant = store.get_by_email_and_dataset(verified_email, dataset_id)
+            if grant:
+                grant.log_access()
+                store.save(grant)
         
         return f(dataset_id, *args, **kwargs)
     
@@ -235,11 +245,16 @@ def get_session():
     """
     verified_email = session.get('verified_email')
     verified_datasets = session.get('verified_datasets', [])
+    share_link_access = session.get('share_link_access', False)
+    
+    # User is authenticated if they have a verified email OR share link access
+    is_authenticated = verified_email is not None or (share_link_access and len(verified_datasets) > 0)
     
     return jsonify({
-        "authenticated": verified_email is not None,
-        "email": verified_email,
-        "accessible_datasets": verified_datasets
+        "authenticated": is_authenticated,
+        "email": verified_email or ("Share Link Access" if share_link_access else None),
+        "accessible_datasets": verified_datasets,
+        "share_link_access": share_link_access
     }), 200
 
 
@@ -259,24 +274,39 @@ def list_private_datasets():
         JSON with list of accessible private datasets
     """
     verified_email = session.get('verified_email')
+    verified_datasets = session.get('verified_datasets', [])
+    share_link_access = session.get('share_link_access', False)
     
-    if not verified_email:
+    # If no email verification and no share link access, return empty
+    if not verified_email and not (share_link_access and verified_datasets):
         return jsonify({
             "datasets": [],
             "message": "Not authenticated"
         }), 200
-    
-    store = get_grant_store()
-    grants = store.get_grants_for_email(verified_email)
     
     private_catalog = get_private_catalog()
     if not private_catalog:
         return jsonify({"datasets": [], "count": 0}), 200
     
     datasets = []
-    for grant in grants:
+    accessible_dataset_ids = set()
+    
+    # Add datasets from email grants
+    if verified_email:
+        store = get_grant_store()
+        grants = store.get_grants_for_email(verified_email)
+        for grant in grants:
+            accessible_dataset_ids.add(grant.dataset_id)
+    
+    # Add datasets from share link access
+    if share_link_access and verified_datasets:
+        for dataset_id in verified_datasets:
+            accessible_dataset_ids.add(dataset_id)
+    
+    # Fetch dataset details
+    for dataset_id in accessible_dataset_ids:
         try:
-            dataset = private_catalog.get_by_id(grant.dataset_id)
+            dataset = private_catalog.get_by_id(dataset_id)
             datasets.append(dataset.to_dict())
         except Exception:
             # Dataset may have been removed
@@ -285,7 +315,7 @@ def list_private_datasets():
     return jsonify({
         "datasets": datasets,
         "count": len(datasets),
-        "email": verified_email
+        "email": verified_email or ("Share Link Access" if share_link_access else None)
     }), 200
 
 
@@ -521,3 +551,333 @@ def admin_list_private_datasets():
         "datasets": datasets,
         "count": len(datasets)
     }), 200
+
+
+# ============================================================================
+# Shareable Link Endpoints
+# ============================================================================
+
+@private_bp.route("/share/<token>", methods=["GET"])
+def access_shared_link(token: str):
+    """
+    Access a private dataset via a shareable link.
+    
+    This provides one-click access - the user is immediately granted
+    access to the dataset and redirected to the viewer launch page.
+    
+    Args:
+        token: The share token from the URL
+        
+    Returns:
+        Redirect to dataset viewer or error page
+    """
+    try:
+        store = get_link_store()
+        link = store.get_by_token(token)
+        
+        if not link:
+            logger.warning(f"Invalid or expired share link accessed")
+            return jsonify({
+                "error": "Invalid or expired link",
+                "message": "This share link is invalid, has expired, or has reached its usage limit."
+            }), 404
+        
+        # Record usage
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        user_agent = request.headers.get('User-Agent', '')[:200]  # Truncate for storage
+        link.record_use(ip_address=ip_address, user_agent=user_agent)
+        store.save(link)
+        
+        # Set up session for this dataset
+        if 'verified_datasets' not in session:
+            session['verified_datasets'] = []
+        
+        if link.dataset_id not in session['verified_datasets']:
+            session['verified_datasets'].append(link.dataset_id)
+        
+        # Mark session as share-link authenticated
+        session['share_link_access'] = True
+        session['share_link_id'] = link.id
+        
+        logger.info(f"Share link {link.id} used for dataset {link.dataset_id} (use #{link.use_count})")
+        
+        # Redirect to the private access page (session is already set up)
+        base_url = current_app.config.get("BASE_URL", "")
+        return redirect(f"{base_url}/private")
+        
+    except Exception as e:
+        logger.error(f"Error accessing share link: {str(e)}", exc_info=True)
+        return jsonify({"error": "Failed to access shared link"}), 500
+
+
+@private_bp.route("/share/<token>/info", methods=["GET"])
+def get_shared_link_info(token: str):
+    """
+    Get information about a shareable link without using it.
+    
+    This allows the frontend to show link details before the user clicks through.
+    """
+    try:
+        store = get_link_store()
+        link = store.get_by_token(token)
+        
+        if not link:
+            return jsonify({
+                "valid": False,
+                "error": "Invalid or expired link"
+            }), 404
+        
+        # Get dataset info
+        private_catalog = get_private_catalog()
+        dataset_info = None
+        
+        if private_catalog:
+            try:
+                dataset = private_catalog.get_by_id(link.dataset_id)
+                dataset_info = {
+                    "id": dataset.id,
+                    "display_name": dataset.display_name,
+                    "description": dataset.description,
+                    "organism": dataset.organism,
+                    "tissue": dataset.tissue
+                }
+            except Exception:
+                pass
+        
+        return jsonify({
+            "valid": True,
+            "link_id": link.id,
+            "dataset_id": link.dataset_id,
+            "dataset": dataset_info,
+            "label": link.label,
+            "expires_at": link.expires_at,
+            "remaining_uses": (link.max_uses - link.use_count) if link.max_uses else None
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting share link info: {str(e)}", exc_info=True)
+        return jsonify({"error": "Failed to get link info"}), 500
+
+
+@private_bp.route("/share/<token>/launch", methods=["POST"])
+def launch_via_share_link(token: str):
+    """
+    Launch a CellXGene container for a dataset accessed via share link.
+    
+    This is the API endpoint called after the user clicks through the share link.
+    """
+    try:
+        store = get_link_store()
+        link = store.get_by_token(token)
+        
+        if not link:
+            return jsonify({
+                "error": "Invalid or expired link",
+                "message": "This share link is invalid, has expired, or has reached its usage limit."
+            }), 404
+        
+        # Record usage if not already recorded in this session
+        if session.get('share_link_id') != link.id:
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            user_agent = request.headers.get('User-Agent', '')[:200]
+            link.record_use(ip_address=ip_address, user_agent=user_agent)
+            store.save(link)
+        
+        # Get dataset
+        private_catalog = get_private_catalog()
+        container_manager = current_app.config.get("PRIVATE_CONTAINER_MANAGER")
+        
+        if not private_catalog:
+            return jsonify({"error": "Private datasets not configured"}), 500
+        
+        if not container_manager:
+            return jsonify({"error": "Container manager not configured"}), 500
+        
+        try:
+            dataset = private_catalog.get_by_id(link.dataset_id)
+        except Exception:
+            return jsonify({"error": "Dataset not found"}), 404
+        
+        # Launch container
+        port = container_manager.launch_dataset(link.dataset_id, dataset.filename)
+        cellxgene_url = f"/cellxgene-{link.dataset_id}/"
+        
+        logger.info(f"Launched container for share link {link.id}, dataset {link.dataset_id}")
+        
+        return jsonify({
+            "dataset_id": link.dataset_id,
+            "cellxgene_url": cellxgene_url,
+            "status": "launching"
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error launching via share link: {str(e)}", exc_info=True)
+        return jsonify({"error": "Failed to launch dataset"}), 500
+
+
+# ============================================================================
+# Admin Shareable Link Endpoints
+# ============================================================================
+
+@private_bp.route("/admin/share-links", methods=["POST"])
+def admin_create_share_link():
+    """
+    Admin endpoint to create a shareable link for a private dataset.
+    
+    Request body:
+        - dataset_id: ID of the private dataset
+        - created_by_email: Email of the person creating the link
+        - label: Optional descriptive label (e.g., "For Nature reviewers")
+        - expires_in_days: Optional, default 30
+        - max_uses: Optional, maximum number of uses (None = unlimited)
+        - send_email: Optional, if true sends the link via email
+        - recipient_email: Required if send_email is true
+        
+    Returns:
+        JSON with link details including the full shareable URL
+    """
+    admin_token = request.headers.get("X-Admin-Token")
+    expected_token = current_app.config.get("ADMIN_TOKEN")
+    
+    if expected_token and admin_token != expected_token:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        data = request.get_json()
+        
+        dataset_id = data.get("dataset_id", "").strip()
+        created_by_email = (data.get("created_by_email") or "").strip().lower()
+        label = (data.get("label") or "").strip() or None
+        expires_in_days = data.get("expires_in_days", 30)
+        max_uses = data.get("max_uses")  # None = unlimited
+        send_email = data.get("send_email", False)
+        recipient_email = (data.get("recipient_email") or "").strip().lower()
+        
+        if not dataset_id:
+            return jsonify({"error": "Dataset ID required"}), 400
+        
+        if not created_by_email or "@" not in created_by_email:
+            return jsonify({"error": "Valid creator email required"}), 400
+        
+        if send_email and (not recipient_email or "@" not in recipient_email):
+            return jsonify({"error": "Valid recipient email required when send_email is true"}), 400
+        
+        # Verify dataset exists
+        private_catalog = get_private_catalog()
+        if private_catalog:
+            try:
+                dataset = private_catalog.get_by_id(dataset_id)
+                dataset_name = dataset.display_name
+            except Exception:
+                return jsonify({"error": "Dataset not found"}), 404
+        else:
+            dataset_name = dataset_id
+        
+        # Generate token and create link
+        token = generate_share_token()
+        link = ShareableLink.create(
+            dataset_id=dataset_id,
+            token=token,
+            created_by_email=created_by_email,
+            label=label,
+            expires_in_days=expires_in_days,
+            max_uses=max_uses
+        )
+        
+        store = get_link_store()
+        store.save(link)
+        
+        # Build the shareable URL
+        base_url = current_app.config.get("BASE_URL", "http://localhost")
+        share_url = f"{base_url}/api/private/share/{token}"
+        
+        # Optionally send email
+        if send_email and recipient_email:
+            email_service = current_app.config.get("EMAIL_SERVICE")
+            if email_service:
+                email_service.send_share_link(
+                    to_email=recipient_email,
+                    share_url=share_url,
+                    dataset_name=dataset_name,
+                    expires_at=link.expires_at,
+                    created_by=created_by_email,
+                    label=label
+                )
+                logger.info(f"Share link sent to {recipient_email} for dataset {dataset_id}")
+        
+        logger.info(f"Share link created by {created_by_email} for dataset {dataset_id}")
+        
+        return jsonify({
+            "success": True,
+            "link_id": link.id,
+            "share_url": share_url,
+            "token": token,  # Only shown at creation time
+            "dataset_id": dataset_id,
+            "dataset_name": dataset_name,
+            "label": label,
+            "expires_at": link.expires_at,
+            "max_uses": max_uses,
+            "email_sent": send_email and bool(recipient_email)
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating share link: {str(e)}", exc_info=True)
+        return jsonify({"error": "Failed to create share link"}), 500
+
+
+@private_bp.route("/admin/share-links/<dataset_id>", methods=["GET"])
+def admin_list_share_links(dataset_id: str):
+    """
+    Admin endpoint to list all share links for a dataset.
+    """
+    admin_token = request.headers.get("X-Admin-Token")
+    expected_token = current_app.config.get("ADMIN_TOKEN")
+    
+    if expected_token and admin_token != expected_token:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    store = get_link_store()
+    links = store.get_links_for_dataset(dataset_id)
+    
+    return jsonify({
+        "dataset_id": dataset_id,
+        "links": [link.to_public_dict() for link in links],
+        "count": len(links)
+    }), 200
+
+
+@private_bp.route("/admin/share-links/<link_id>/revoke", methods=["POST"])
+def admin_revoke_share_link(link_id: str):
+    """
+    Admin endpoint to revoke a share link.
+    """
+    admin_token = request.headers.get("X-Admin-Token")
+    expected_token = current_app.config.get("ADMIN_TOKEN")
+    
+    if expected_token and admin_token != expected_token:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    store = get_link_store()
+    
+    if store.revoke(link_id):
+        logger.info(f"Admin revoked share link {link_id}")
+        return jsonify({"success": True, "message": "Share link revoked"}), 200
+    else:
+        return jsonify({"error": "Share link not found"}), 404
+
+
+@private_bp.route("/admin/share-links/stats", methods=["GET"])
+def admin_share_link_stats():
+    """
+    Admin endpoint to get share link statistics.
+    """
+    admin_token = request.headers.get("X-Admin-Token")
+    expected_token = current_app.config.get("ADMIN_TOKEN")
+    
+    if expected_token and admin_token != expected_token:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    store = get_link_store()
+    stats = store.get_stats()
+    
+    return jsonify(stats), 200
