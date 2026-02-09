@@ -220,34 +220,23 @@ class DatasetScanner:
             ),
         )
 
-        # Try to extract organism, tissue, assay from various locations
-        # Priority: explicit metadata > .uns > obs columns > default
+        # Try to extract organism, tissue, assay from .uns only
+        # Priority: explicit metadata > .uns > default
         if "organism" not in metadata:
             if "organism" in adata.uns:
                 metadata["organism"] = str(adata.uns["organism"])
-            elif (
-                "organism" in adata.obs.columns
-                and len(adata.obs["organism"].unique()) == 1
-            ):
-                metadata["organism"] = str(adata.obs["organism"].iloc[0])
             else:
                 metadata["organism"] = "Unknown"
 
         if "tissue" not in metadata:
             if "tissue" in adata.uns:
                 metadata["tissue"] = str(adata.uns["tissue"])
-            elif (
-                "tissue" in adata.obs.columns and len(adata.obs["tissue"].unique()) == 1
-            ):
-                metadata["tissue"] = str(adata.obs["tissue"].iloc[0])
             else:
                 metadata["tissue"] = "Unknown"
 
         if "assay" not in metadata:
             if "assay" in adata.uns:
                 metadata["assay"] = str(adata.uns["assay"])
-            elif "assay" in adata.obs.columns and len(adata.obs["assay"].unique()) == 1:
-                metadata["assay"] = str(adata.obs["assay"].iloc[0])
             else:
                 metadata["assay"] = "Unknown"
 
@@ -255,48 +244,10 @@ class DatasetScanner:
         metadata["cell_count"] = adata.n_obs
         metadata["gene_count"] = adata.n_vars
 
-        # Extract additional metadata from obs columns
-        # Only store study-level metadata (low cardinality fields that describe the study/dataset)
-        # Skip cell-level annotations like cell types, clusters, etc.
+        # Extract additional study-level metadata from .uns only
+        # .uns contains dataset-level annotations like publication info, batch info, etc.
         additional_metadata = {}
         
-        # Define study-level metadata fields to extract (these typically have very few unique values)
-        study_level_fields = {
-            'sex', 'gender', 'disease', 'development_stage', 'ethnicity', 
-            'donor_id', 'batch', 'sample_id', 'technology', 'method',
-            'treatment', 'time_point', 'condition', 'sequencing_platform',
-            'library_preparation', 'species'
-        }
-        
-        if adata.obs is not None:
-            for col in adata.obs.columns:
-                col_lower = col.lower()
-                
-                # Skip columns we already extracted as main metadata
-                if col in ['organism', 'tissue', 'assay']:
-                    continue
-                
-                # Check if this looks like a study-level field
-                is_study_level = any(field in col_lower for field in study_level_fields)
-                
-                if is_study_level:
-                    try:
-                        # Get unique values for this column
-                        unique_values = adata.obs[col].dropna().unique()
-                        n_unique = len(unique_values)
-                        
-                        # Only store if there are very few unique values (study-level, not cell-level)
-                        # Study-level metadata typically has 1-10 unique values
-                        if 0 < n_unique <= 10:
-                            # Convert to list of strings
-                            unique_list = [str(v) for v in unique_values]
-                            additional_metadata[col] = sorted(unique_list)
-                    except Exception as e:
-                        # Skip columns that can't be processed
-                        continue
-        
-        # Also extract study-level metadata from .uns
-        # .uns can contain dataset-level annotations like publication info, batch info, etc.
         uns_study_fields = {
             'title', 'description', 'publication', 'doi', 'authors', 'contributors',
             'version', 'date_created', 'date_modified', 'license', 'protocol',

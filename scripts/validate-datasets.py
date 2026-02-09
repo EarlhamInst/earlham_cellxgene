@@ -188,33 +188,22 @@ def extract_metadata_from_h5ad(h5ad_path: Path) -> Tuple[Optional[Dict], Optiona
             ),
         )
 
-        # Try to extract organism, tissue, assay from various locations
+        # Try to extract organism, tissue, assay from .uns only
         if "organism" not in metadata:
             if "organism" in adata.uns:
                 metadata["organism"] = str(adata.uns["organism"])
-            elif (
-                "organism" in adata.obs.columns
-                and len(adata.obs["organism"].unique()) == 1
-            ):
-                metadata["organism"] = str(adata.obs["organism"].iloc[0])
             else:
                 metadata["organism"] = "Unknown"
 
         if "tissue" not in metadata:
             if "tissue" in adata.uns:
                 metadata["tissue"] = str(adata.uns["tissue"])
-            elif (
-                "tissue" in adata.obs.columns and len(adata.obs["tissue"].unique()) == 1
-            ):
-                metadata["tissue"] = str(adata.obs["tissue"].iloc[0])
             else:
                 metadata["tissue"] = "Unknown"
 
         if "assay" not in metadata:
             if "assay" in adata.uns:
                 metadata["assay"] = str(adata.uns["assay"])
-            elif "assay" in adata.obs.columns and len(adata.obs["assay"].unique()) == 1:
-                metadata["assay"] = str(adata.obs["assay"].iloc[0])
             else:
                 metadata["assay"] = "Unknown"
 

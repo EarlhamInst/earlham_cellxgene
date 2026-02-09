@@ -53,7 +53,7 @@ class Dataset:
     file_size_bytes: Optional[int] = None
     is_valid: bool = True
     validation_errors: list = None
-    additional_metadata: Optional[Dict[str, Any]] = None  # For storing extra obs metadata
+    additional_metadata: Optional[Dict[str, Any]] = None  # For storing extra .uns metadata
 
     def __post_init__(self):
         """Initialize after dataclass creation."""

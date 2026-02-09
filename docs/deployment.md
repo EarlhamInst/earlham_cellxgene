@@ -97,9 +97,10 @@ nano .env  # or vim, emacs, etc.
 **Update these values for remote deployment:**
 
 ```bash
-# Data Storage - Use absolute paths on VM
-HOST_DATA_DIRECTORY=/opt/cellxgene_stack/data/datasets
-HOST_LOG_DIRECTORY=/opt/cellxgene_stack/data/logs
+# Data Storage - Use /mnt/data as production root
+HOST_DATA_DIRECTORY=/mnt/data/datasets
+HOST_PRIVATE_DATA_DIRECTORY=/mnt/data/private
+HOST_LOG_DIRECTORY=/mnt/data/logs
 
 # Service Ports - Change if 80 is in use
 NGINX_PORT=80              # Main web interface port
@@ -125,8 +126,8 @@ LANDING_PAGE_LOG_LEVEL=INFO
 To enable private dataset functionality with access control:
 
 ```bash
-# Private datasets directory
-HOST_PRIVATE_DATA_DIRECTORY=/opt/cellxgene_stack/data/private
+# Private datasets directory (already set if using /mnt/data structure)
+HOST_PRIVATE_DATA_DIRECTORY=/mnt/data/private
 
 # Admin panel authentication (REQUIRED - generate a secure random token)
 ADMIN_TOKEN=your-secure-admin-token-here
@@ -172,16 +173,15 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 ## Step 4: Prepare Data Directory
 
 ```bash
-# Create data directories
-mkdir -p data/datasets data/logs
+# Create data directories under /mnt/data
+sudo mkdir -p /mnt/data/datasets /mnt/data/private /mnt/data/logs
 
 # Set proper permissions
-chmod 755 data/datasets
-chmod 755 data/logs
+sudo chmod 755 /mnt/data/datasets /mnt/data/private /mnt/data/logs
 
 # Copy your h5ad datasets
 # Example: scp from local machine
-# scp *.h5ad user@remote-vm:/opt/cellxgene_stack/data/datasets/
+# scp *.h5ad user@remote-vm:/mnt/data/datasets/
 
 # Or download directly on VM
 # wget https://example.com/dataset.h5ad -P data/datasets/

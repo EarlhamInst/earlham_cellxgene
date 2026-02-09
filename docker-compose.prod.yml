@@ -3,16 +3,33 @@
 #
 # This file contains production-appropriate settings that override the
 # development defaults in docker-compose.yml
+#
+# Production data paths use /mnt/data as root:
+#   - /mnt/data/datasets  - Public h5ad files
+#   - /mnt/data/private   - Private h5ad files  
+#   - /mnt/data/logs      - Application logs
 
 services:
   landing-page:
+    environment:
+      # Production data paths
+      - HOST_DATA_DIRECTORY=/mnt/data/datasets
+      - HOST_PRIVATE_DATA_DIRECTORY=/mnt/data/private
+      # Admin authentication (REQUIRED - set in .env file)
+      - ADMIN_TOKEN=${ADMIN_TOKEN:?ADMIN_TOKEN is required for production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required for production}
+    volumes:
+      - /mnt/data/datasets:/data/datasets:ro
+      - /mnt/data/private:/data/private:ro
+      - /mnt/data/logs:/data/logs
+      - /var/run/docker.sock:/var/run/docker.sock
     # Production healthcheck - longer intervals to avoid false positives under load
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 120s
     # Production restart policy
     restart: always
     # Production logging
@@ -21,6 +38,10 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
+
+  cellxgene:
+    volumes:
+      - /mnt/data/datasets:/data/datasets:ro
 
   nginx:
     # Production restart policy
