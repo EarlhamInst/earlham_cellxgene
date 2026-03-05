@@ -15,6 +15,8 @@ from pathlib import Path
 from .config import load_config, ConfigurationError
 from .services.scanner import DatasetScanner
 from .services.catalog import DatasetCatalog
+from .services.database import init_database, DatabaseError
+from .models.dataset import DatasetStoreSQLite
 from .errors import ValidationError
 
 
@@ -24,14 +26,16 @@ def validate_and_initialize(logger: logging.Logger) -> tuple:
 
     This function implements fail-fast validation:
     - Load and validate configuration
+    - Initialize SQLite database
     - Scan and validate all datasets
+    - Sync datasets to database
     - Fail immediately if anything is wrong
 
     Args:
         logger: Logger instance
 
     Returns:
-        Tuple of (config, catalog)
+        Tuple of (config, catalog, database)
 
     Raises:
         SystemExit: If validation fails (exits with code 1)
@@ -47,6 +51,7 @@ def validate_and_initialize(logger: logging.Logger) -> tuple:
         logger.info("✓ Configuration loaded successfully")
         logger.info(f"  Data directory: {config.data_directory}")
         logger.info(f"  Log directory: {config.log_directory}")
+        logger.info(f"  Database path: {config.database_path}")
         logger.info(f"  Debug mode: {config.debug}")
         logger.info(f"  Log level: {config.log_level}")
     except ConfigurationError as e:
@@ -55,13 +60,27 @@ def validate_and_initialize(logger: logging.Logger) -> tuple:
             logger.error(f"  Recovery hint: {e.recovery_hint}")
         sys.exit(1)
 
-    # Step 2: Scan and validate datasets
-    logger.info("Step 2: Scanning datasets...")
+    # Step 2: Initialize SQLite database
+    logger.info("Step 2: Initializing database...")
+    try:
+        database = init_database(config.database_path, logger)
+        stats = database.get_stats()
+        logger.info("✓ Database initialized successfully")
+        logger.info(f"  Users: {stats.get('users', 0)}")
+        logger.info(f"  Datasets: {stats.get('datasets', 0)}")
+        logger.info(f"  Access grants: {stats.get('access_grants', 0)}")
+        logger.info(f"  Shareable links: {stats.get('shareable_links', 0)}")
+    except DatabaseError as e:
+        logger.error(f"✗ Database initialization failed: {e}")
+        sys.exit(1)
+
+    # Step 3: Scan and validate datasets from filesystem
+    logger.info("Step 3: Scanning datasets...")
     scanner = DatasetScanner(config.data_directory, logger)
 
     try:
         valid_datasets, invalid_datasets = scanner.scan(fail_on_invalid=True)
-        logger.info(f"✓ Found {len(valid_datasets)} valid datasets")
+        logger.info(f"✓ Found {len(valid_datasets)} valid datasets on filesystem")
 
         for dataset in valid_datasets:
             logger.info(f"  - {dataset.id}: {dataset.display_name}")
@@ -77,15 +96,26 @@ def validate_and_initialize(logger: logging.Logger) -> tuple:
         )
         sys.exit(1)
 
-    # Step 3: Create dataset catalog
-    logger.info("Step 3: Creating dataset catalog...")
-    catalog = DatasetCatalog(valid_datasets, logger)
-    logger.info(f"✓ Catalog initialized with {len(catalog)} datasets")
+    # Step 4: Sync curated datasets to database
+    logger.info("Step 4: Syncing datasets to database...")
+    dataset_store = DatasetStoreSQLite(database)
+    sync_stats = dataset_store.sync_curated_datasets(valid_datasets)
+    logger.info(f"✓ Database sync complete")
+    logger.info(f"  Added: {sync_stats['added']}")
+    logger.info(f"  Updated: {sync_stats['updated']}")
+    logger.info(f"  Removed: {sync_stats['removed']}")
 
-    # Step 4: Display catalog statistics
+    # Step 5: Create dataset catalog (from database for consistency)
+    logger.info("Step 5: Creating dataset catalog...")
+    # Get all public datasets from database (includes curated + user-uploaded public)
+    all_public = dataset_store.get_public()
+    catalog = DatasetCatalog(all_public, logger)
+    logger.info(f"✓ Catalog initialized with {len(catalog)} public datasets")
+
+    # Step 6: Display catalog statistics
     stats = catalog.get_statistics()
-    logger.info("Step 4: Catalog statistics:")
-    logger.info(f"  Total datasets: {stats['total_datasets']}")
+    logger.info("Step 6: Catalog statistics:")
+    logger.info(f"  Total public datasets: {stats['total_datasets']}")
     logger.info(f"  Total cells: {stats['total_cells']:,}")
     logger.info(f"  Unique organisms: {stats['unique_organisms']}")
     logger.info(f"  Unique tissues: {stats['unique_tissues']}")
@@ -95,7 +125,7 @@ def validate_and_initialize(logger: logging.Logger) -> tuple:
     logger.info("✓ Startup validation complete - all checks passed")
     logger.info("=" * 60)
 
-    return config, catalog
+    return config, catalog, database
 
 
 def validate_on_startup_decorator(app_factory):
@@ -114,11 +144,12 @@ def validate_on_startup_decorator(app_factory):
 
         # Run validation
         logger = logging.getLogger("cellxgene-landing-page")
-        config, catalog = validate_and_initialize(logger)
+        config, catalog, database = validate_and_initialize(logger)
 
         # Store in app config
         app.config["SERVICE_CONFIG"] = config
         app.config["CATALOG"] = catalog
+        app.config["DATABASE"] = database
         app.config["CELLXGENE_URL"] = config.cellxgene_url
 
         return app

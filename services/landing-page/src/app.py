@@ -90,10 +90,11 @@ def create_app(config=None, testing=False):
 
         catalog = DatasetCatalog(datasets=[], logger=logger)
         container_manager = None
+        database = None
     else:
         # Run startup validation
         logger.info("Initializing application...")
-        service_config, catalog = validate_and_initialize(logger)
+        service_config, catalog, database = validate_and_initialize(logger)
 
         # Initialize container manager for dynamic CellXGene instances
         # Pass both container path and host path for volume mounting
@@ -140,6 +141,7 @@ def create_app(config=None, testing=False):
     app.config["SERVICE_CONFIG"] = service_config
     app.config["CATALOG"] = catalog
     app.config["CONTAINER_MANAGER"] = container_manager
+    app.config["DATABASE"] = database
     app.config["CELLXGENE_URL"] = service_config.cellxgene_url
     app.config["DEBUG"] = service_config.debug
     

@@ -12,9 +12,12 @@ import secrets
 import hashlib
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 import json
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from ..services.database import Database
 
 
 def generate_share_token() -> str:
@@ -319,6 +322,194 @@ class ShareableLinkStore:
         
         for link_data in links.values():
             link = ShareableLink.from_dict(link_data)
+            if link.revoked:
+                revoked += 1
+            elif link.is_expired():
+                expired += 1
+            elif link.max_uses and link.use_count >= link.max_uses:
+                exhausted += 1
+            else:
+                active += 1
+        
+        return {
+            "total": total,
+            "active": active,
+            "revoked": revoked,
+            "expired": expired,
+            "exhausted": exhausted
+        }
+
+
+class ShareableLinkStoreSQLite:
+    """
+    SQLite-backed storage for shareable links.
+    
+    Drop-in replacement for ShareableLinkStore using SQLite database.
+    """
+    
+    def __init__(self, database: "Database"):
+        """
+        Initialize the store.
+        
+        Args:
+            database: Database instance from services.database
+        """
+        self.db = database
+    
+    def _row_to_link(self, row) -> ShareableLink:
+        """Convert a database row to ShareableLink."""
+        # Load access log from separate table
+        access_log = []
+        logs = self.db.execute(
+            "SELECT accessed_at, ip_address, user_agent FROM shareable_link_log WHERE link_id = ? ORDER BY accessed_at",
+            (row['id'],)
+        )
+        for log_row in logs:
+            access_log.append({
+                "timestamp": log_row['accessed_at'],
+                "ip": log_row['ip_address'] or "unknown",
+                "user_agent": log_row['user_agent'] or "unknown",
+            })
+        
+        return ShareableLink(
+            id=row['id'],
+            dataset_id=row['dataset_id'],
+            token_hash=row['token_hash'],
+            created_by_email=row['created_by_email'] or '',
+            label=row['label'],
+            created_at=row['created_at'],
+            expires_at=row['expires_at'],
+            max_uses=row['max_uses'],
+            use_count=row['use_count'],
+            access_log=access_log,
+            revoked=bool(row['revoked']),
+            last_used_at=row['last_used_at'],
+        )
+    
+    def save(self, link: ShareableLink) -> None:
+        """Save or update a link."""
+        with self.db.transaction() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO shareable_links 
+                (id, dataset_id, token_hash, created_by_email, label, created_at, 
+                 expires_at, max_uses, use_count, last_used_at, revoked)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                link.id,
+                link.dataset_id,
+                link.token_hash,
+                link.created_by_email,
+                link.label,
+                link.created_at,
+                link.expires_at,
+                link.max_uses,
+                link.use_count,
+                link.last_used_at,
+                1 if link.revoked else 0,
+            ))
+    
+    def get_by_id(self, link_id: str) -> Optional[ShareableLink]:
+        """Get a link by ID."""
+        row = self.db.execute_one(
+            "SELECT * FROM shareable_links WHERE id = ?",
+            (link_id,)
+        )
+        if row:
+            return self._row_to_link(row)
+        return None
+    
+    def get_by_token(self, token: str) -> Optional[ShareableLink]:
+        """
+        Find a link by token.
+        
+        Searches all non-revoked, non-expired links for a matching token.
+        
+        Args:
+            token: The plain-text token
+            
+        Returns:
+            ShareableLink if found and valid, None otherwise
+        """
+        token_hashed = hash_token(token)
+        row = self.db.execute_one(
+            """SELECT * FROM shareable_links 
+               WHERE token_hash = ? AND revoked = 0
+               AND datetime(expires_at) > datetime('now')""",
+            (token_hashed,)
+        )
+        if row:
+            link = self._row_to_link(row)
+            # Check max_uses if set
+            if link.max_uses is not None and link.use_count >= link.max_uses:
+                return None
+            return link
+        return None
+    
+    def get_links_for_dataset(self, dataset_id: str) -> List[ShareableLink]:
+        """Get all links for a dataset."""
+        rows = self.db.execute(
+            "SELECT * FROM shareable_links WHERE dataset_id = ?",
+            (dataset_id,)
+        )
+        return [self._row_to_link(row) for row in rows]
+    
+    def get_links_by_creator(self, email: str) -> List[ShareableLink]:
+        """Get all links created by an email."""
+        email = email.lower().strip()
+        rows = self.db.execute(
+            "SELECT * FROM shareable_links WHERE created_by_email = ?",
+            (email,)
+        )
+        return [self._row_to_link(row) for row in rows]
+    
+    def revoke(self, link_id: str) -> bool:
+        """Revoke a link by ID."""
+        affected = self.db.execute_write(
+            "UPDATE shareable_links SET revoked = 1 WHERE id = ?",
+            (link_id,)
+        )
+        return affected > 0
+    
+    def revoke_all_for_dataset(self, dataset_id: str) -> int:
+        """Revoke all links for a dataset. Returns count revoked."""
+        affected = self.db.execute_write(
+            "UPDATE shareable_links SET revoked = 1 WHERE dataset_id = ? AND revoked = 0",
+            (dataset_id,)
+        )
+        return affected
+    
+    def log_access(self, link_id: str, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> None:
+        """Log an access event and increment use_count."""
+        now = datetime.utcnow().isoformat()
+        with self.db.transaction() as conn:
+            conn.execute(
+                "INSERT INTO shareable_link_log (link_id, accessed_at, ip_address, user_agent) VALUES (?, ?, ?, ?)",
+                (link_id, now, ip_address, user_agent)
+            )
+            conn.execute(
+                "UPDATE shareable_links SET use_count = use_count + 1, last_used_at = ? WHERE id = ?",
+                (now, link_id)
+            )
+    
+    def cleanup_expired(self) -> int:
+        """Remove expired links. Returns count removed."""
+        affected = self.db.execute_write(
+            "DELETE FROM shareable_links WHERE datetime(expires_at) < datetime('now')"
+        )
+        return affected
+    
+    def get_stats(self) -> Dict[str, int]:
+        """Get statistics about stored links."""
+        rows = self.db.execute("SELECT * FROM shareable_links")
+        
+        total = len(rows)
+        active = 0
+        revoked = 0
+        expired = 0
+        exhausted = 0
+        
+        for row in rows:
+            link = self._row_to_link(row)
             if link.revoked:
                 revoked += 1
             elif link.is_expired():

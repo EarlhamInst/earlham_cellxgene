@@ -17,6 +17,7 @@ services:
       - PRIVATE_DATA_DIRECTORY=/data/private
       - HOST_PRIVATE_DATA_DIRECTORY=${HOST_PRIVATE_DATA_DIRECTORY:-./data/private}
       - GRANTS_STORAGE_PATH=/data/logs/access_grants.json
+      - DATABASE_PATH=/data/logs/cellxgene.db
       - ADMIN_TOKEN=${ADMIN_TOKEN:-}
       - SECRET_KEY=${SECRET_KEY:-}
       # Email configuration (optional)

@@ -12,9 +12,12 @@ import secrets
 import hashlib
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 import json
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from ..services.database import Database
 
 
 def generate_access_code() -> str:
@@ -280,3 +283,160 @@ class AccessGrantStore:
         
         self._save_grants(grants)
         return initial_count - len(grants)
+
+
+class AccessGrantStoreSQLite:
+    """
+    SQLite-backed storage for access grants.
+    
+    Drop-in replacement for AccessGrantStore using SQLite database.
+    """
+    
+    def __init__(self, database):
+        """
+        Initialize the store.
+        
+        Args:
+            database: Database instance from services.database
+        """
+        from ..services.database import Database
+        self.db: Database = database
+    
+    def _row_to_grant(self, row) -> AccessGrant:
+        """Convert a database row to AccessGrant."""
+        # Load access log from separate table
+        access_log = []
+        logs = self.db.execute(
+            "SELECT accessed_at FROM access_grant_log WHERE grant_id = ? ORDER BY accessed_at",
+            (row['id'],)
+        )
+        for log_row in logs:
+            access_log.append(log_row['accessed_at'])
+        
+        return AccessGrant(
+            id=row['id'],
+            dataset_id=row['dataset_id'],
+            email=row['email'],
+            code_hash=row['code_hash'],
+            created_at=row['created_at'],
+            expires_at=row['expires_at'],
+            verified=bool(row['verified']),
+            verified_at=row['verified_at'],
+            access_log=access_log,
+            revoked=bool(row['revoked']),
+        )
+    
+    def save(self, grant: AccessGrant) -> None:
+        """Save or update a grant."""
+        with self.db.transaction() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO access_grants 
+                (id, dataset_id, email, code_hash, created_at, expires_at, verified, verified_at, revoked)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                grant.id,
+                grant.dataset_id,
+                grant.email,
+                grant.code_hash,
+                grant.created_at,
+                grant.expires_at,
+                1 if grant.verified else 0,
+                grant.verified_at,
+                1 if grant.revoked else 0,
+            ))
+    
+    def get_by_id(self, grant_id: str) -> Optional[AccessGrant]:
+        """Get a grant by ID."""
+        row = self.db.execute_one(
+            "SELECT * FROM access_grants WHERE id = ?",
+            (grant_id,)
+        )
+        if row:
+            return self._row_to_grant(row)
+        return None
+    
+    def get_by_email_and_dataset(self, email: str, dataset_id: str) -> Optional[AccessGrant]:
+        """Get grant for a specific email and dataset."""
+        email = email.lower().strip()
+        row = self.db.execute_one(
+            "SELECT * FROM access_grants WHERE email = ? AND dataset_id = ?",
+            (email, dataset_id)
+        )
+        if row:
+            return self._row_to_grant(row)
+        return None
+    
+    def get_grants_for_email(self, email: str) -> List[AccessGrant]:
+        """Get all valid grants for an email."""
+        email = email.lower().strip()
+        rows = self.db.execute(
+            """SELECT * FROM access_grants 
+               WHERE email = ? AND verified = 1 AND revoked = 0 
+               AND datetime(expires_at) > datetime('now')""",
+            (email,)
+        )
+        return [self._row_to_grant(row) for row in rows]
+    
+    def get_by_email_and_code(self, email: str, code: str) -> Optional[AccessGrant]:
+        """Find a grant matching email and code (verifies the code)."""
+        email = email.lower().strip()
+        code_hashed = hash_code(code)
+        row = self.db.execute_one(
+            """SELECT * FROM access_grants 
+               WHERE email = ? AND code_hash = ? AND revoked = 0
+               AND datetime(expires_at) > datetime('now')""",
+            (email, code_hashed)
+        )
+        if row:
+            return self._row_to_grant(row)
+        return None
+    
+    def get_all_grants_for_email(self, email: str) -> List[AccessGrant]:
+        """Get all non-revoked, non-expired grants for an email (verified or not)."""
+        email = email.lower().strip()
+        rows = self.db.execute(
+            """SELECT * FROM access_grants 
+               WHERE email = ? AND revoked = 0 
+               AND datetime(expires_at) > datetime('now')""",
+            (email,)
+        )
+        return [self._row_to_grant(row) for row in rows]
+    
+    def get_grants_for_dataset(self, dataset_id: str) -> List[AccessGrant]:
+        """Get all grants for a dataset."""
+        rows = self.db.execute(
+            "SELECT * FROM access_grants WHERE dataset_id = ?",
+            (dataset_id,)
+        )
+        return [self._row_to_grant(row) for row in rows]
+    
+    def revoke(self, grant_id: str) -> bool:
+        """Revoke a grant by ID."""
+        affected = self.db.execute_write(
+            "UPDATE access_grants SET revoked = 1 WHERE id = ?",
+            (grant_id,)
+        )
+        return affected > 0
+    
+    def revoke_by_email(self, email: str, dataset_id: str) -> bool:
+        """Revoke grant for an email and dataset."""
+        email = email.lower().strip()
+        affected = self.db.execute_write(
+            "UPDATE access_grants SET revoked = 1 WHERE email = ? AND dataset_id = ?",
+            (email, dataset_id)
+        )
+        return affected > 0
+    
+    def log_access(self, grant_id: str, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> None:
+        """Log an access event for a grant."""
+        self.db.execute_write(
+            "INSERT INTO access_grant_log (grant_id, accessed_at, ip_address, user_agent) VALUES (?, ?, ?, ?)",
+            (grant_id, datetime.utcnow().isoformat(), ip_address, user_agent)
+        )
+    
+    def cleanup_expired(self) -> int:
+        """Remove expired grants. Returns count removed."""
+        affected = self.db.execute_write(
+            "DELETE FROM access_grants WHERE datetime(expires_at) < datetime('now')"
+        )
+        return affected

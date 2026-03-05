@@ -61,6 +61,18 @@ class ServiceConfig:
     
     # Base URL for links in emails
     base_url: str = "http://localhost:8000"
+    
+    # SQLite database
+    database_path: Optional[Path] = None
+    
+    # ORCID OAuth (optional, for user uploads)
+    orcid_client_id: Optional[str] = None
+    orcid_client_secret: Optional[str] = None
+    orcid_redirect_uri: Optional[str] = None
+    orcid_sandbox: bool = True
+    
+    # Flask session secret (required for sessions)
+    flask_secret_key: Optional[str] = None
 
     @classmethod
     def from_environment(cls) -> "ServiceConfig":
@@ -135,6 +147,19 @@ class ServiceConfig:
         
         # Base URL for links in emails
         base_url = os.getenv("BASE_URL", "http://localhost:8000")
+        
+        # SQLite database path
+        database_path_str = os.getenv("DATABASE_PATH")
+        database_path = Path(database_path_str) if database_path_str else data_directory / "cellxgene.db"
+        
+        # ORCID OAuth configuration
+        orcid_client_id = os.getenv("ORCID_CLIENT_ID")
+        orcid_client_secret = os.getenv("ORCID_CLIENT_SECRET")
+        orcid_redirect_uri = os.getenv("ORCID_REDIRECT_URI")
+        orcid_sandbox = os.getenv("ORCID_SANDBOX", "true").lower() == "true"
+        
+        # Flask session secret key
+        flask_secret_key = os.getenv("FLASK_SECRET_KEY")
 
         return cls(
             data_directory=data_directory,
@@ -155,6 +180,12 @@ class ServiceConfig:
             smtp_password=smtp_password,
             smtp_from_email=smtp_from_email,
             base_url=base_url,
+            database_path=database_path,
+            orcid_client_id=orcid_client_id,
+            orcid_client_secret=orcid_client_secret,
+            orcid_redirect_uri=orcid_redirect_uri,
+            orcid_sandbox=orcid_sandbox,
+            flask_secret_key=flask_secret_key,
         )
 
     def to_dict(self) -> dict:
