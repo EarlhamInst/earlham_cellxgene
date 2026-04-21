@@ -18,6 +18,8 @@ services:
       # Admin authentication (REQUIRED - set in .env file)
       - ADMIN_TOKEN=${ADMIN_TOKEN:?ADMIN_TOKEN is required for production}
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required for production}
+      # Public base URL used to build shareable links and redirects
+      - BASE_URL=${BASE_URL:?BASE_URL is required for production (e.g. http://ei-cellxgene-explorer-prod.cyverseuk.org)}
     volumes:
       - /mnt/data/datasets:/data/datasets:ro
       - /mnt/data/private:/data/private:ro
