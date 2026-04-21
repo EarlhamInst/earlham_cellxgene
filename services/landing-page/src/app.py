@@ -143,6 +143,7 @@ def create_app(config=None, testing=False):
     app.config["CONTAINER_MANAGER"] = container_manager
     app.config["DATABASE"] = database
     app.config["CELLXGENE_URL"] = service_config.cellxgene_url
+    app.config["BASE_URL"] = service_config.base_url
     app.config["DEBUG"] = service_config.debug
     
     # Set secret key for sessions
